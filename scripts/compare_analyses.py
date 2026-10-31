@@ -1,86 +1,106 @@
 """Сравнение анализов: что выбрали модели, где сошлись, где разошлись.
 
-На вход — файлы docs/facts/runs/<deck>.<backend>-<stamp>.json (по одному на модель/прогон).
-На выход — COMPARISON.md (для чтения) и COMPARISON.json (машиночитаемо):
+На вход — docs/facts/runs/<колода>.<канал>-<штамп>.json. В счёт идут только принятые
+прогоны: непустой ответ и пустой список `problems` (см. corpus.load_runs). От одного
+канала по умолчанию берётся последний прогон, иначе перезапуск колоды добавлял бы
+«ещё одну модель» и переворачивал срезы.
+
+На выход — COMPARISON-<колода>.md и .json:
 
   consensus  — факты, выбранные всеми прогонами;
   majority   — выбранные большинством;
   single     — выбранные ровно одним прогоном (повод проверить, не пропуск ли это);
-  ignored    — не выбрал никто (кандидаты в «малозначимые» и в «пропущенные»);
-  conclusions — кластеры похожих выводов с указанием, кто их сформулировал.
+  ignored    — не выбрал никто (кандидаты в слепые зоны);
+  clusters   — выводы, сгруппированные по смыслу.
 
-Похожесть выводов — по пересечению fact_ids и по difflib, порог 0.55: этого хватает,
-чтобы собрать одинаковые по смыслу формулировки и не склеить разные.
+Выводы склеиваются, если пересечение их fact_ids близко к полному (Жаккар ≥ 0.5) **или**
+тексты похожи (difflib ≥ порога). Одного общего факта недостаточно: широкий факт вроде
+размера выборки иначе склеит разные выводы.
+
+Запуск:
+  CORPUS_ROOT=/path/to/project python3 $SKILL/compare_analyses.py <колода>
+  … --all-runs            учитывать все прогоны канала, а не последний
+  … --include-rejected    включить отклонённые (для разбора причин отказа)
 """
+from __future__ import annotations
+
+import argparse
 import difflib
-import json
-import os
 import re
 import sys
 from pathlib import Path
 
-ROOT = Path(os.environ.get("CORPUS_ROOT") or Path.cwd()).resolve()
-RUNS = ROOT / "docs/facts/runs"
-FACTS = ROOT / "docs/facts/facts.jsonl"
-OUT_MD = None  # задаётся по имени колоды в main()
-OUT_JSON = None
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import corpus  # noqa: E402
+
 SIMILAR = 0.55
+JACCARD = 0.5
 
 
 def norm(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower().replace("ё", "е")).strip()
 
 
+def jaccard(left: set, right: set) -> float:
+    if not left or not right:
+        return 0.0
+    return len(left & right) / len(left | right)
+
+
+def same_claim(claim: dict, other: dict, similarity: float, overlap: float) -> bool:
+    if jaccard(claim["facts"], other["facts"]) >= overlap:
+        return True
+    return difflib.SequenceMatcher(None, norm(claim["text"]), norm(other["text"])).ratio() >= similarity
+
+
 def main() -> int:
-    global OUT_MD, OUT_JSON
-    if len(sys.argv) < 2:
-        print("укажи колоду: compare_analyses.py <колода>")
-        return 2
-    deck = sys.argv[1]
-    OUT_MD = ROOT / f"docs/facts/COMPARISON-{deck}.md"
-    OUT_JSON = ROOT / f"docs/facts/COMPARISON-{deck}.json"
-    runs = []
-    for path in sorted(RUNS.glob(f"{deck}.*.json")):
-        body = json.loads(path.read_text("utf-8"))
-        if not body.get("answer"):
-            continue
-        runs.append({"name": f"{body['backend']} ({path.name.split('.')[1]})", "path": path, "body": body})
-    if len(runs) < 1:
-        print(f"нет прогонов для {deck}")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("deck")
+    parser.add_argument("--all-runs", action="store_true")
+    parser.add_argument("--include-rejected", action="store_true")
+    parser.add_argument("--similarity", type=float, default=SIMILAR)
+    parser.add_argument("--overlap", type=float, default=JACCARD, help="порог Жаккара для выводов")
+    args = parser.parse_args()
+
+    deck = args.deck
+    out_md = corpus.ROOT / f"docs/facts/COMPARISON-{deck}.md"
+    out_json = corpus.ROOT / f"docs/facts/COMPARISON-{deck}.json"
+
+    runs = corpus.load_runs(deck, include_rejected=args.include_rejected, all_runs=args.all_runs)
+    if not runs:
+        print(f"нет принятых прогонов для {deck}")
         return 2
 
-    facts = {}
-    for line in FACTS.read_text("utf-8").splitlines():
-        if line.strip():
-            row = json.loads(line)
-            if row["deck"] == deck:
-                facts[row["fact_id"]] = row
+    facts = {row["fact_id"]: row for row in corpus.load_facts(deck)}
 
     selected = {}
     for run in runs:
-        selected[run["name"]] = {item.get("fact_id") for item in run["body"]["answer"].get("selected", [])
-                                 if item.get("fact_id") in facts}
+        selected[run["name"]] = {
+            item.get("fact_id") for item in run["body"]["answer"].get("selected", [])
+            if isinstance(item, dict) and item.get("fact_id") in facts
+        }
 
     names = list(selected)
     counts = {fid: sum(fid in selected[name] for name in names) for fid in facts}
-    consensus = sorted((fid for fid, n in counts.items() if n == len(names)), key=lambda f: facts[f]["page"])
-    majority = sorted((fid for fid, n in counts.items() if n > len(names) / 2), key=lambda f: facts[f]["page"])
-    single = sorted((fid for fid, n in counts.items() if n == 1), key=lambda f: facts[f]["page"])
-    ignored = sorted((fid for fid, n in counts.items() if n == 0), key=lambda f: facts[f]["page"])
+    by_page = lambda fid: (facts[fid]["page"], fid)  # noqa: E731
+    consensus = sorted((fid for fid, n in counts.items() if n == len(names)), key=by_page)
+    majority = sorted((fid for fid, n in counts.items() if n > len(names) / 2), key=by_page)
+    single = sorted((fid for fid, n in counts.items() if n == 1), key=by_page)
+    ignored = sorted((fid for fid, n in counts.items() if n == 0), key=by_page)
 
     claims = []
     for run in runs:
         for item in run["body"]["answer"].get("conclusions", []):
+            if not isinstance(item, dict):
+                continue
             text = (item.get("text") or "").strip()
             if text:
                 claims.append({"text": text, "facts": set(item.get("fact_ids") or []), "by": run["name"]})
+
     clusters: list[dict] = []
     for claim in claims:
         for cluster in clusters:
-            head = cluster["claims"][0]
-            overlap = claim["facts"] & head["facts"]
-            similar = difflib.SequenceMatcher(None, norm(claim["text"]), norm(head["text"])).ratio()
-            if overlap or similar >= SIMILAR:
+            if any(same_claim(claim, member, args.similarity, args.overlap) for member in cluster["claims"]):
                 cluster["claims"].append(claim)
                 break
         else:
@@ -93,8 +113,9 @@ def main() -> int:
     lines = [
         f"# Сравнение анализов: {deck}",
         "",
-        f"Прогонов: {len(runs)} — " + ", ".join(f"{r['name']}: {len(r['body']['answer'].get('selected', []))} фактов, "
-                                               f"{len(r['body']['answer'].get('conclusions', []))} выводов" for r in runs),
+        f"Прогонов: {len(runs)} — " + ", ".join(
+            f"{r['name']}: {len(r['body']['answer'].get('selected', []))} фактов, "
+            f"{len(r['body']['answer'].get('conclusions', []))} выводов" for r in runs),
         "",
         f"Всего фактов в колоде: {len(facts)}",
         "",
@@ -138,31 +159,24 @@ def main() -> int:
         lines.append(f"- {fid} стр.{row['page']}: {row['label']} = {row['value']}")
     lines.append("")
 
-    OUT_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    OUT_JSON.write_text(
-        json.dumps(
-            {
-                "deck": deck,
-                "runs": [r["name"] for r in runs],
-                "counts": counts,
-                "consensus": consensus,
-                "majority": majority,
-                "single": single,
-                "ignored": ignored,
-                "clusters": [
-                    {"claims": [{"text": c["text"], "facts": sorted(c["facts"]), "by": c["by"]}
-                                for c in cluster["claims"]]}
-                    for cluster in clusters
-                ],
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    out_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    corpus.write_json(out_json, {
+        "deck": deck,
+        "runs": [r["name"] for r in runs],
+        "counts": counts,
+        "consensus": consensus,
+        "majority": majority,
+        "single": single,
+        "ignored": ignored,
+        "clusters": [
+            {"claims": [{"text": c["text"], "facts": sorted(c["facts"]), "by": c["by"]}
+                        for c in cluster["claims"]]}
+            for cluster in clusters
+        ],
+    })
     print(f"прогонов {len(runs)}: consensus {len(consensus)}, single {len(single)}, ignored {len(ignored)}, "
           f"кластеров выводов {len(clusters)} (согласны все {len(agreed)})")
-    print(f"→ {OUT_MD.relative_to(ROOT)}, {OUT_JSON.relative_to(ROOT)}")
+    print(f"→ {corpus.rel(out_md)}, {corpus.rel(out_json)}")
     return 0
 
 

@@ -4,7 +4,7 @@
 dispositions.json). Остальные цели проверяются предикатом заново, доказательство
 перевыпускается: после правки выводов решение должно обновляться без ручной возни.
 
-Запуск: python3 docs/registry/tools/apply_dispositions.py
+Запуск: CORPUS_ROOT=/path/to/project python3 $SKILL/apply_dispositions.py
 """
 import contextlib
 import io
@@ -33,7 +33,7 @@ def run(*argv):
 def main() -> int:
     decisions = dispositions.load(ROOT)
     if not decisions:
-        print("решений нет — лист fact_decisions.md ждёт заполнения")
+        print(f"нет решений: {ROOT / 'docs/registry/dispositions.json'} (сначала apply_fact_decisions.py)")
         return 0
 
     invariants = {}

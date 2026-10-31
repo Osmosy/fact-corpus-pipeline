@@ -7,30 +7,28 @@
   "not_relevant":[{"fact_id": "F-…", "why": "почему не значим"}]
 }
 
-Бэкенды:
-  zcode   — промо-пул Z.AI через `zcode-start-plan` (GLM-5.3-Flash), тратит пул;
-  ollama  — локальный шлюз к облачной модели, OpenAI-совместимый /v1.
+Приёмка: ответ разбирается, все три списка на месте, каждый fact_id в любом из них есть в
+каноне колоды, выводы есть и у каждого вывода есть ссылки. Иначе прогон сохраняется с
+непустым `problems` и в сравнение не идёт (см. corpus.load_runs).
 
-Запуск: python3 docs/facts/run_analysis.py --backend zcode --deck inkofood-2026
+Бэкенды:
+  zcode   — пул Z.AI через `zcode-start-plan` (тратит пул);
+  ollama  — OpenAI-совместимый шлюз к модели (LLM_URL / LLM_MODEL).
+
+Запуск: CORPUS_ROOT=/path/to/project python3 $SKILL/run_analysis.py --backend ollama --deck <колода>
 """
+from __future__ import annotations
+
 import argparse
 import json
-import os
-import re
 import subprocess
 import sys
 import time
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(os.environ.get("CORPUS_ROOT") or Path.cwd()).resolve()
-FACTS = ROOT / "docs/facts/facts.jsonl"
-RUNS = ROOT / "docs/facts/runs"
-
-QUESTION = (
-    "Вопрос исследования: что определяет покупку мясной гастрономии (колбасы, деликатесы, "
-    "ветчина, цельномясные продукты) и где лежат возможности роста для бренда."
-)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import corpus  # noqa: E402
 
 CONTRACT = """Верни ТОЛЬКО JSON без пояснений и без markdown:
 {
@@ -45,81 +43,30 @@ CONTRACT = """Верни ТОЛЬКО JSON без пояснений и без m
 - факты, которые ты видел, но не использовал, перечисли в not_relevant с причиной.
 """
 
-
-def load_facts(deck: str | None) -> list[dict]:
-    rows = []
-    for line in FACTS.read_text("utf-8").splitlines():
-        if line.strip():
-            row = json.loads(line)
-            if deck is None or row["deck"] == deck:
-                rows.append(row)
-    return rows
+KEYS = ("selected", "conclusions")
 
 
-def build_prompt(deck: str, facts: list[dict]) -> str:
+def build_prompt(deck: str, facts: list[dict], config: dict) -> str:
     lines = [f"{r['fact_id']} | стр.{r['page']} | {r['label']} | {r['value']}" for r in facts]
     return (
-        f"Ты аналитик рынка FMCG. Ниже машиночитаемые факты колоды «{deck}» "
+        f"Ты {config['role']}. Ниже машиночитаемые факты колоды «{deck}» "
         f"({len(facts)} строк, формат: id | страница | подпись | значение).\n\n"
-        f"{QUESTION}\n\n"
+        f"{config['question']}\n\n"
         + "\n".join(lines)
         + "\n\n"
         + CONTRACT
     )
 
 
-def extract_object(text: str, must_have: str) -> dict | None:
-    """Ищет в тексте первый сбалансированный JSON-объект, содержащий ключ must_have."""
-    for start, char in enumerate(text):
-        if char != "{":
-            continue
-        depth = 0
-        for index in range(start, len(text)):
-            if text[index] == "{":
-                depth += 1
-            elif text[index] == "}":
-                depth -= 1
-                if depth == 0:
-                    blob = text[start : index + 1]
-                    if must_have in blob:
-                        blob = re.sub(r",\s*([\]}])", r"\1", blob)
-                        try:
-                            return json.loads(blob)
-                        except json.JSONDecodeError:
-                            break
-                    break
-    return None
-
-
-def call_zcode(prompt: str, keys: tuple[str, ...] = ("selected", "conclusions")) -> tuple[str, dict]:
+def call_zcode(prompt: str, keys: tuple[str, ...] = KEYS) -> tuple[str, dict]:
     proc = subprocess.run(
-        [str(Path.home() / ".local/bin/zcode-start-plan"), "-p", prompt, "--cwd", str(ROOT),
+        [corpus.ZCODE_BIN, "-p", prompt, "--cwd", str(corpus.ROOT),
          "--mode", "plan", "--json"],
         capture_output=True, text=True, timeout=1800,
     )
     meta = {"exit": proc.returncode, "stdout_tail": proc.stdout[-300:]}
     # --json печатает конверт {sessionId, response, usage, …}; ответ модели лежит в response.
-    envelope = None
-    for start, char in enumerate(proc.stdout):
-        if char != "{":
-            continue
-        depth = 0
-        for index in range(start, len(proc.stdout)):
-            if proc.stdout[index] == "{":
-                depth += 1
-            elif proc.stdout[index] == "}":
-                depth -= 1
-                if depth == 0:
-                    blob = re.sub(r",\s*([\]}])", r"\1", proc.stdout[start : index + 1])
-                    try:
-                        candidate = json.loads(blob)
-                    except json.JSONDecodeError:
-                        break
-                    if "sessionId" in candidate:
-                        envelope = candidate
-                    break
-        if envelope:
-            break
+    envelope = corpus.extract_object(proc.stdout, ("sessionId",))
     answer = None
     if envelope:
         meta["session"] = envelope.get("sessionId")
@@ -128,21 +75,21 @@ def call_zcode(prompt: str, keys: tuple[str, ...] = ("selected", "conclusions"))
         if isinstance(response, dict):
             answer = response
         elif isinstance(response, str):
-            answer = next((found for key in keys if (found := extract_object(response, key))), None)
+            answer = corpus.extract_object(response, keys)
     if answer is None:
-        answer = next((found for key in keys if (found := extract_object(proc.stdout, key))), None)
+        answer = corpus.extract_object(proc.stdout, keys)
     meta["answer_found"] = answer is not None
     return json.dumps(answer, ensure_ascii=False) if answer else "", meta
 
 
-def call_ollama(prompt: str, model: str, keys: tuple[str, ...] = ("selected", "conclusions")) -> tuple[str, dict]:
+def call_ollama(prompt: str, model: str, keys: tuple[str, ...] = KEYS) -> tuple[str, dict]:
     body = json.dumps(
         {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False,
          "temperature": 0.2},
         ensure_ascii=False,
     ).encode("utf-8")
     request = urllib.request.Request(
-        "http://127.0.0.1:11434/v1/chat/completions",
+        corpus.LLM_URL,
         data=body,
         headers={"Content-Type": "application/json", "Authorization": "Bearer ollama"},
     )
@@ -150,22 +97,51 @@ def call_ollama(prompt: str, model: str, keys: tuple[str, ...] = ("selected", "c
         payload = json.loads(response.read().decode("utf-8"))
     text = payload["choices"][0]["message"]["content"]
     meta = {"usage": payload.get("usage"), "model": payload.get("model")}
-    answer = next((found for key in keys if (found := extract_object(text, key))), None)
+    answer = corpus.extract_object(text, keys)
     meta["answer_found"] = answer is not None
     return json.dumps(answer, ensure_ascii=False) if answer else "", meta
 
 
+def _ids(items, field: str) -> list:
+    """fact_id или fact_ids из элемента списка; терпит мусор в ответе модели."""
+    out = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        value = item.get(field)
+        if isinstance(value, str):
+            out.append(value)
+        elif isinstance(value, list):
+            out.extend(value)
+    return out
+
+
 def validate(answer: str, facts: list[dict]) -> tuple[dict | None, list[str]]:
-    problems: list[str] = []
+    """Проверяет весь ответ, а не только selected: неизвестный id в любом списке — проблема."""
     if not answer:
         return None, ["модель не вернула разбираемый JSON"]
-    data = json.loads(answer)
+    try:
+        data = json.loads(answer)
+    except json.JSONDecodeError as error:
+        return None, [f"ответ не разбирается как JSON: {error}"]
+    if not isinstance(data, dict):
+        return None, ["ответ не объект JSON"]
+
+    problems: list[str] = []
+    for key in ("selected", "conclusions", "not_relevant"):
+        if not isinstance(data.get(key), list):
+            problems.append(f"{key}: нет списка")
+    if problems:
+        return data, problems
+
     known = {row["fact_id"] for row in facts}
-    selected = [item for item in data.get("selected", []) if isinstance(item, dict)]
-    conclusions = [item for item in data.get("conclusions", []) if isinstance(item, dict)]
-    bad = [item.get("fact_id") for item in selected if item.get("fact_id") not in known]
-    if bad:
-        problems.append(f"несуществующие fact_id: {bad[:5]}")
+    for key, field in (("selected", "fact_id"), ("conclusions", "fact_ids"),
+                       ("not_relevant", "fact_id")):
+        unknown = [fid for fid in _ids(data[key], field) if fid not in known]
+        if unknown:
+            problems.append(f"{key}: несуществующие fact_id {unknown[:5]}")
+
+    conclusions = [item for item in data["conclusions"] if isinstance(item, dict)]
     if not conclusions:
         problems.append("нет выводов")
     for item in conclusions:
@@ -178,18 +154,19 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", choices=("zcode", "ollama"), required=True)
     parser.add_argument("--deck", required=True)
-    parser.add_argument("--model", default="deepseek-v4.1-flash:cloud")
+    parser.add_argument("--model", default=corpus.LLM_MODEL)
     parser.add_argument("--thematic-only", action="store_true")
     args = parser.parse_args()
 
-    facts = load_facts(args.deck)
+    config = corpus.load_config()
+    facts = corpus.load_facts(args.deck)
     if args.thematic_only:
         facts = [row for row in facts if row["thematic"]]
     if not facts:
         print(f"нет фактов для {args.deck}")
         return 2
 
-    prompt = build_prompt(args.deck, facts)
+    prompt = build_prompt(args.deck, facts, config)
     print(f"{args.backend}: {len(facts)} фактов, промпт {len(prompt)} символов")
     started = time.time()
     try:
@@ -200,27 +177,20 @@ def main() -> int:
         return 1
     data, problems = validate(answer, facts)
 
-    RUNS.mkdir(parents=True, exist_ok=True)
+    corpus.RUNS.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    out = RUNS / f"{args.deck}.{args.backend}-{stamp}.json"
-    out.write_text(
-        json.dumps(
-            {
-                "deck": args.deck,
-                "backend": args.backend,
-                "facts_total": len(facts),
-                "facts_thematic": sum(row["thematic"] for row in facts),
-                "seconds": round(time.time() - started, 1),
-                "meta": meta,
-                "problems": problems,
-                "answer": data,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    print(f"→ {out.relative_to(ROOT)}")
+    out = corpus.RUNS / f"{args.deck}.{args.backend}-{stamp}.json"
+    corpus.write_json(out, {
+        "deck": args.deck,
+        "backend": args.backend,
+        "facts_total": len(facts),
+        "facts_thematic": sum(row["thematic"] for row in facts),
+        "seconds": round(time.time() - started, 1),
+        "meta": meta,
+        "problems": problems,
+        "answer": data,
+    })
+    print(f"→ {corpus.rel(out)}")
     if data:
         print(f"выбрано {len(data.get('selected', []))}, выводов {len(data.get('conclusions', []))}, "
               f"отклонено {len(data.get('not_relevant', []))}")

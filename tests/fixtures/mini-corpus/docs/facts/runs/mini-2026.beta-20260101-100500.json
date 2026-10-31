@@ -1,0 +1,14 @@
+{
+  "deck": "mini-2026",
+  "backend": "beta",
+  "problems": [],
+  "answer": {
+    "selected": [
+      {"fact_id": "F-344ccae9ed26", "why": "драйвер"}
+    ],
+    "conclusions": [
+      {"text": "Вкус определяет выбор продукта", "fact_ids": ["F-344ccae9ed26"]}
+    ],
+    "not_relevant": []
+  }
+}

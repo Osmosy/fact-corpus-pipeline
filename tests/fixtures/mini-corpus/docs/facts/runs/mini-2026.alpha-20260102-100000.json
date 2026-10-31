@@ -1,0 +1,15 @@
+{
+  "deck": "mini-2026",
+  "backend": "alpha",
+  "problems": ["conclusions: несуществующие fact_id ['F-000000000000']"],
+  "answer": {
+    "selected": [
+      {"fact_id": "F-344ccae9ed26", "why": "дубль"},
+      {"fact_id": "F-000000000000", "why": "выдуманный"}
+    ],
+    "conclusions": [
+      {"text": "Испорченный прогон", "fact_ids": ["F-000000000000"]}
+    ],
+    "not_relevant": []
+  }
+}

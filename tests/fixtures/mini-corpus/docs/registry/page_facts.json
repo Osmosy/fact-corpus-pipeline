@@ -1,0 +1,52 @@
+{
+  "decks": {
+    "mini-2026": {
+      "deck_sha256": "demo-sha",
+      "pages": {
+        "1": {
+          "facts": [
+            {
+              "label": "Нравится вкус продукта",
+              "value": "54,8 %",
+              "verified": true
+            },
+            {
+              "label": "Не нравится вкус продукта",
+              "value": "10 %",
+              "verified": true
+            },
+            {
+              "label": "Нравится вкус продукта",
+              "value": "53,5 %",
+              "verified": true
+            },
+            {
+              "label": "Не проверенный факт",
+              "value": "7 %",
+              "verified": false
+            },
+            {
+              "label": "Нравится вкус продукта",
+              "value": "54,8 %",
+              "verified": true
+            }
+          ]
+        },
+        "2": {
+          "facts": [
+            {
+              "label": "Нравится вкус продукта",
+              "value": "54,8 %",
+              "verified": true
+            },
+            {
+              "label": "Оценка без числа",
+              "value": "",
+              "verified": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}

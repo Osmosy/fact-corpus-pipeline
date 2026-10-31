@@ -1,59 +1,48 @@
-"""Рынок РБ → справочно: правило заказчика (основная цель — рынок РФ).
+"""Правило «второстепенный рынок → справочно».
 
-Колоды дают две панели на одном слайде (### РФ / ### РБ). Обязательство, опирающееся на
-строку белорусской панели, остаётся фактом, но перестаёт быть обязательством выводов:
-оно живёт в приложении «Справочно» с причиной «рынок РБ, основная цель — РФ».
+Колоды дают несколько панелей на одном слайде (`### РФ` / `### РБ`). Если цель бренда —
+один рынок, обязательства, опирающиеся на строки другого, остаются фактами, но перестают
+быть обязательствами выводов: они живут в приложении «Справочно» с причиной.
+
+Связь требования и факта — по дословной строке таблицы: панель берётся из ближайшего
+заголовка `###`, страница факта — из самого факта (а не None).
 
 Запуск:
-  python3 docs/facts/rb_to_info.py            — только показать, что попадёт под правило;
-  python3 docs/facts/rb_to_info.py --apply    — записать решения.
+  CORPUS_ROOT=/path/to/project python3 $SKILL/rb_to_info.py --panel РБ
+  … --apply          записать решения (без флага — только показать)
+  … --reason "…"     причина в приложении
 """
+from __future__ import annotations
+
 import argparse
 import json
-import os
-import re
 import sys
 from pathlib import Path
 
-ROOT = Path(os.environ.get("CORPUS_ROOT") or Path.cwd()).resolve()
-DECKS = ROOT / "decks"
-REQUIREMENTS = ROOT / "docs/requirements-registry.jsonl"
-DECISIONS = ROOT / "docs/facts/fact_decisions.json"
-DISPOSITIONS = ROOT / "docs/registry/dispositions.json"
-FACTS = ROOT / "docs/facts/facts.jsonl"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import corpus  # noqa: E402
+
 DEFAULT_REASON = "второстепенный рынок: основная цель — другой рынок"
-BY = "заказчик 31.10.2026"
 
 
-def panel_map() -> dict[str, str]:
-    """строка таблицы → 'РФ' | 'РБ' | '' (панель не размечена)."""
-    mapping: dict[str, str] = {}
-    for deck_dir in sorted(DECKS.iterdir()):
-        path = deck_dir / f"{deck_dir.name}.md"
-        if not path.is_file():
-            continue
-        panel = ""
-        for line in path.read_text("utf-8").splitlines():
-            stripped = line.strip()
-            if stripped.startswith("## "):
-                panel = ""
-                continue
-            if stripped.startswith("### "):
-                head = stripped[4:].strip().upper()
-                panel = "РФ" if head.startswith("РФ") else "РБ" if head.startswith("РБ") else ""
-                continue
-            if stripped.startswith("|") and panel:
-                mapping.setdefault(f"{deck_dir.name}|{stripped}", panel)
-    return mapping
+def deck_of(record: dict) -> str:
+    """Имя колоды из источника требования; пусто, если требование не из decks/."""
+    file = (record.get("source") or {}).get("file", "")
+    parts = file.split("/")
+    return parts[1] if len(parts) > 2 and parts[0] == "decks" else ""
 
 
-def latest_requirements() -> dict[str, dict]:
-    latest = {}
-    for line in REQUIREMENTS.read_text("utf-8").splitlines():
-        if line.strip():
-            record = json.loads(line)
-            latest[record["req_id"]] = record
-    return latest
+def panel_index() -> dict[tuple[str, str], str]:
+    """(колода, строка таблицы) → панель."""
+    index: dict[tuple[str, str], str] = {}
+    decks = corpus.ROOT / "decks"
+    if not decks.is_dir():
+        return index
+    for path in sorted(decks.glob("*/*.md")):
+        deck = path.parent.name
+        for row in corpus.rows(deck):
+            index[(deck, row["raw"])] = row["panel"]
+    return index
 
 
 def main() -> int:
@@ -63,60 +52,69 @@ def main() -> int:
     parser.add_argument("--reason", default=DEFAULT_REASON)
     args = parser.parse_args()
 
-    panels = panel_map()
-    reqs = latest_requirements()
-    facts = {}
-    for line in FACTS.read_text("utf-8").splitlines():
-        if line.strip():
-            row = json.loads(line)
-            facts[row["fact_id"]] = row
+    config = corpus.load_config()
+    panels = panel_index()
+    latest = {}
+    for record in corpus.load_jsonl(corpus.REQUIREMENTS):
+        latest[record["req_id"]] = record
+
+    decisions = json.loads(corpus.DECISIONS.read_text("utf-8")) if corpus.DECISIONS.is_file() else {}
+    dispositions = json.loads(corpus.DISPOSITIONS.read_text("utf-8")) if corpus.DISPOSITIONS.is_file() else {}
+
+    facts_by_deck: dict[str, list[dict]] = {}
+    for fact in corpus.load_facts():
+        facts_by_deck.setdefault(fact["deck"], []).append(fact)
 
     targets = []
-    for req_id, record in sorted(reqs.items()):
+    for req_id, record in sorted(latest.items()):
         if record.get("status") != "elicited":
             continue
-        deck = record["source"]["file"].split("/")[1] if record["source"]["file"].startswith("decks/") else ""
-        key = f"{deck}|{record['raw_text'].strip()}"
-        if panels.get(key) == args.panel:
-            targets.append((req_id, record))
+        deck = deck_of(record)
+        if not deck:
+            continue
+        if panels.get((deck, record["raw_text"].strip())) == args.panel:
+            targets.append((req_id, record, deck))
 
-    decisions = json.loads(DECISIONS.read_text("utf-8")) if DECISIONS.is_file() else {}
-    dispositions = json.loads(DISPOSITIONS.read_text("utf-8")) if DISPOSITIONS.is_file() else {}
-
-    print(f"обязательств на панели РБ: {len(targets)}")
-    by_fact = {}
-    for fid, row in facts.items():
-        by_fact[(row["deck"], row["page"], row["label"], row["value"])] = fid
-
-    for req_id, record in targets:
-        cells = [c.strip() for c in record["raw_text"].strip().strip("|").split("|")]
+    print(f"обязательств на панели «{args.panel}»: {len(targets)}")
+    linked = skipped = 0
+    for req_id, record, deck in targets:
+        cells = [cell.strip() for cell in record["raw_text"].strip().strip("|").split("|")]
         label = cells[0] if cells else ""
         value = " / ".join(cells[1:]) if len(cells) > 1 else ""
-        print(f"  {req_id}: стр. — {label[:60]} = {value[:30]}")
-        dispositions[req_id] = {"target": "info", "reason": args.reason, "by": BY}
-        if args.apply:
-            candidates = [
-                fid for (deck, page, flabel, fvalue), fid in by_fact.items()
-                if flabel[:40] == label[:40] and fvalue.rstrip(" %") in record["raw_text"]
-            ]
-            fid = candidates[0] if candidates else f"req:{req_id}"
-            decisions[fid] = {
-                "target": "info",
-                "reason": args.reason,
-                "deck": record["source"]["file"].split("/")[1],
-                "page": None,
-                "label": label,
-                "value": value,
-                "req_id": req_id,
-            }
+        matched = []
+        for fact in facts_by_deck.get(deck, []):
+            row = corpus.row_for_fact(deck, fact.get("page"), fact["label"], fact["value"])
+            if row is not None and row["raw"] == record["raw_text"].strip():
+                matched.append(fact)
+        fact = matched[0] if matched else None
+        print(f"  {req_id}: стр.{fact['page'] if fact else '—'} — {label[:60]} = {value[:30]}")
+        dispositions[req_id] = {"target": "info", "reason": args.reason, "by": config["decided_by"]}
+        if not args.apply:
+            continue
+        if fact is None:
+            skipped += 1
+            print("     факт не найден — требование остаётся без решения по факту")
+            continue
+        decisions[fact["fact_id"]] = {
+            "target": "info",
+            "reason": args.reason,
+            "deck": deck,
+            "page": fact["page"],
+            "label": fact["label"],
+            "value": fact["value"],
+            "req_id": req_id,
+            "req_ids": [req_id],
+        }
+        linked += 1
 
     if not args.apply:
         print("пробный прогон: добавь --apply, чтобы записать")
         return 0
 
-    DECISIONS.write_text(json.dumps(decisions, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    DISPOSITIONS.write_text(json.dumps(dispositions, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"записано: решений по фактам {len(decisions)}, диспозиций {len(dispositions)}")
+    corpus.write_json(corpus.DECISIONS, decisions)
+    corpus.write_json(corpus.DISPOSITIONS, dispositions)
+    print(f"записано: решений по фактам {len(decisions)} (связано {linked}, без факта {skipped}), "
+          f"диспозиций {len(dispositions)}")
     return 0
 
 

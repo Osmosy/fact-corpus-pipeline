@@ -1,0 +1,15 @@
+{
+  "deck": "mini-2026",
+  "backend": "alpha",
+  "problems": [],
+  "answer": {
+    "selected": [
+      {"fact_id": "F-344ccae9ed26", "why": "ключевой драйвер"},
+      {"fact_id": "F-b87e8a10cd92", "why": "вторая панель"}
+    ],
+    "conclusions": [
+      {"text": "Вкус — основной драйвер выбора", "fact_ids": ["F-344ccae9ed26"]}
+    ],
+    "not_relevant": [{"fact_id": "F-9cb26287888a", "why": "фон"}]
+  }
+}

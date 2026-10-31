@@ -1,58 +1,67 @@
 """Собирает приложение «Справочно» из решений по фактам.
 
-Единственный генератор APPENDIX-INFO.md: и разбор слепых зон (apply_fact_decisions.py),
-и правило «рынок РБ → справочно» (rb_to_info.py) пишут решения в fact_decisions.json,
-а приложение пересобирается отсюда. Иначе два скрипта дают две разные версии документа.
+Единственный генератор APPENDIX-INFO.md: и разбор слепых зон, и правило «второстепенный
+рынок → справочно» пишут решения в fact_decisions.json, а приложение пересобирается здесь.
+Иначе два скрипта дают две разные версии документа.
 
-Запуск: python3 docs/facts/build_appendix.py
+Работает и без реестра требований: если docs/requirements-registry.jsonl нет, подпись и
+значение берутся из самого решения. Если приложений несколько и не задан APPENDIX_INFO —
+скрипт останавливается: молча выбрать одно значит потерять остальные.
+
+Запуск: CORPUS_ROOT=/path/to/project python3 $SKILL/build_appendix.py
 """
+from __future__ import annotations
+
 import json
 import os
 import sys
 from pathlib import Path
 
-ROOT = Path(os.environ.get("CORPUS_ROOT") or Path.cwd()).resolve()
-DECISIONS = ROOT / "docs/facts/fact_decisions.json"
-REQUIREMENTS = ROOT / "docs/requirements-registry.jsonl"
-SPANS = ROOT / "docs/registry/spans.jsonl"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import corpus  # noqa: E402
+
+
 def appendix_path() -> Path:
-    """Где приложение «Справочно»: APPENDIX_INFO, иначе единственное reviews/*/APPENDIX-INFO.md."""
+    """Где приложение: APPENDIX_INFO, иначе единственное reviews/*/APPENDIX-INFO.md."""
     env = os.environ.get("APPENDIX_INFO")
     if env:
-        return ROOT / env
-    found = sorted((ROOT / "reviews").glob("*/APPENDIX-INFO.md"))
-    return found[0] if found else ROOT / "reviews/APPENDIX-INFO.md"
-
-
-APPENDIX = None  # вычисляется в main() через appendix_path()
+        return corpus.ROOT / env
+    found = sorted((corpus.ROOT / "reviews").glob("*/APPENDIX-INFO.md")) if \
+        (corpus.ROOT / "reviews").is_dir() else []
+    if len(found) > 1:
+        raise SystemExit(
+            "найдено несколько приложений, укажи нужное:\n  "
+            + "\n  ".join(corpus.rel(path) for path in found)
+            + "\nпеременной APPENDIX_INFO=<путь относительно корня>"
+        )
+    return found[0] if found else corpus.ROOT / "reviews/APPENDIX-INFO.md"
 
 
 def pages_by_span() -> dict[tuple[str, tuple], int]:
     mapping = {}
-    path = SPANS
-    if not path.is_file():
-        return mapping
-    for line in path.read_text("utf-8").splitlines():
-        if not line.strip():
-            continue
-        span = json.loads(line)
+    spans_path = corpus.ROOT / "docs/registry/spans.jsonl"
+    for span in corpus.load_jsonl(spans_path):
         if span.get("page"):
             mapping[(span["file"], tuple(span["span"]))] = span["page"]
     return mapping
 
 
+def cell(text: str) -> str:
+    """Значение для markdown-таблицы: вертикальная черта ломает строку."""
+    return (text or "—").replace("|", "/").replace("\n", " ").strip() or "—"
+
+
 def main() -> int:
-    if not DECISIONS.is_file():
-        print("нет fact_decisions.json")
+    if not corpus.DECISIONS.is_file():
+        print(f"нет {corpus.rel(corpus.DECISIONS)} — сначала apply_fact_decisions.py")
         return 2
-    decisions = json.loads(DECISIONS.read_text("utf-8"))
+    decisions = json.loads(corpus.DECISIONS.read_text("utf-8"))
 
     req_texts, req_pages = {}, {}
     spans = pages_by_span()
-    for line in REQUIREMENTS.read_text("utf-8").splitlines():
-        if line.strip():
-            record = json.loads(line)
-            req_texts[record["req_id"]] = record.get("raw_text", "").strip()
+    for record in corpus.load_jsonl(corpus.REQUIREMENTS):
+        req_texts[record["req_id"]] = record.get("raw_text", "").strip()
+        if record.get("source"):
             key = (record["source"]["file"], tuple(record["source"]["span"]))
             req_pages[record["req_id"]] = spans.get(key)
 
@@ -60,17 +69,17 @@ def main() -> int:
     for fid, decision in decisions.items():
         if decision.get("target") != "info":
             continue
-        req_id = decision.get("req_id")
-        raw = req_texts.get(req_id or "", "")
+        req_id = decision.get("req_id") or ""
+        raw = req_texts.get(req_id, "")
         if raw:
-            cells = [cell.strip() for cell in raw.strip("|").split("|")]
+            cells = [part.strip() for part in raw.strip("|").split("|")]
             label = cells[0]
-            value = " / ".join(cell for cell in cells[1:] if cell)
+            value = " / ".join(part for part in cells[1:] if part)
         else:
             label, value = decision.get("label", ""), decision.get("value", "")
-        page = decision.get("page") or req_pages.get(req_id or "")
+        page = decision.get("page") or req_pages.get(req_id)
         rows.append((decision.get("deck", ""), page, label, value or decision.get("value", ""),
-                     decision.get("reason", "")))
+                     decision.get("reason", ""), fid))
 
     lines = [
         "# Справочно",
@@ -81,11 +90,19 @@ def main() -> int:
         "| колода | стр. | факт | значение | причина |",
         "|---|---|---|---|---|",
     ]
-    for deck, page, label, value, reason in sorted(rows, key=lambda r: (r[0], r[1] or 0)):
-        lines.append(f"| {deck} | {page if page else '—'} | {label} | {value} | {reason} |")
-    APPENDIX = appendix_path()
-    APPENDIX.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"справочно: {len(rows)} фактов → {APPENDIX.relative_to(ROOT)}")
+    for deck, page, label, value, reason, fid in sorted(rows, key=lambda r: (r[0], r[1] or 0)):
+        lines.append(f"| {cell(deck)} | {page if page else '—'} | {cell(label)} | "
+                     f"{cell(value)} | {cell(reason)} |")
+
+    path = appendix_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    info_total = sum(1 for decision in decisions.values() if decision.get("target") == "info")
+    print(f"справочно: {len(rows)} фактов → {corpus.rel(path)}")
+    if len(rows) != info_total:
+        print(f"  расхождение: решений «info» {info_total}, строк в приложении {len(rows)}")
+        return 1
     return 0
 
 
