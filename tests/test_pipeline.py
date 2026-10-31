@@ -68,9 +68,9 @@ class TestBuildFacts(CorpusCase):
         done = self.run_script("build_facts.py")
         self.assertEqual(done.returncode, 0, done.stderr)
         facts = self.facts()
-        # стр.1: 54,8 (дважды — дубль), 10, 53,5; стр.2: 54,8 (другая страница — не дубль)
-        self.assertEqual(len(facts), 4)
-        self.assertEqual(len({row["fact_id"] for row in facts}), 4)
+        # стр.1: 54,8 (дважды — дубль), 10, 53,5; стр.2: 54,8; стр.3: «Одинаковая строка»
+        self.assertEqual(len(facts), 5)
+        self.assertEqual(len({row["fact_id"] for row in facts}), 5)
         self.assertIn("дублей: 1", done.stdout)
 
         rejected = (self.tmp / "docs/facts/facts-rejected.jsonl").read_text("utf-8").splitlines()
@@ -113,7 +113,7 @@ class TestCompare(CorpusCase):
         self.assertEqual(len(body["runs"]), 2, body["runs"])          # alpha и beta, без отклонённого
         self.assertEqual(len(body["consensus"]), 1)
         self.assertEqual(len(body["single"]), 1)
-        self.assertEqual(len(body["ignored"]), 2)   # 10 % и повтор со стр. 2
+        self.assertEqual(len(body["ignored"]), 3)   # 10 %, повтор со стр. 2, стр. 3
 
     def test_include_rejected_flag(self) -> None:
         done = self.run_script("compare_analyses.py", "mini-2026", "--include-rejected",
@@ -191,6 +191,88 @@ class TestExtractObject(unittest.TestCase):
         self.assertEqual(inner["selected"][0]["fact_id"], "F-1")
 
 
+class TestSkippedRun(CorpusCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.run_script("build_facts.py")
+
+    def test_rejected_latest_run_is_reported(self) -> None:
+        done = self.run_script("compare_analyses.py", "mini-2026")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("последний прогон отклонён", done.stdout)
+        self.assertIn("mini-2026.alpha-20260102-100000", done.stdout)
+        body = json.loads((self.tmp / "docs/facts/COMPARISON-mini-2026.json").read_text("utf-8"))
+        self.assertEqual([note["backend"] for note in body["runs_skipped"]], ["alpha"])
+        self.assertIn("mini-2026.alpha-20260102-100000", body["runs_skipped"][0]["skipped"])
+
+    def test_skipped_runs_reach_the_markdown(self) -> None:
+        self.run_script("compare_analyses.py", "mini-2026")
+        text = (self.tmp / "docs/facts/COMPARISON-mini-2026.md").read_text("utf-8")
+        self.assertIn("последний прогон канала отклонён", text)
+
+
+class TestAmbiguity(CorpusCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.run_script("build_facts.py")
+
+    def test_same_label_and_value_in_two_panels_is_not_linked(self) -> None:
+        row, reason = corpus.resolve_row("mini-2026", 3, "Одинаковая строка", "42 %")
+        self.assertIsNone(row)
+        self.assertIn("неоднозначно", reason)
+        self.assertIn("РФ", reason)
+        self.assertIn("РБ", reason)
+
+    def test_apply_decisions_lists_ambiguous_fact_for_human(self) -> None:
+        done = self.run_script("apply_fact_decisions.py")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("нужно решение человека", done.stdout)
+        decisions = json.loads((self.tmp / "docs/facts/fact_decisions.json").read_text("utf-8"))
+        ambiguous = [entry for entry in decisions.values()
+                     if entry["label"] == "Одинаковая строка"]
+        self.assertEqual(len(ambiguous), 1)
+        self.assertEqual(ambiguous[0]["req_ids"], [])
+
+
+class TestRbToInfo(CorpusCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.run_script("build_facts.py")
+
+    def test_dry_run_finds_requirement_and_writes_nothing(self) -> None:
+        done = self.run_script("rb_to_info.py", "--panel", "РБ")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("REQ-0001", done.stdout)
+        self.assertFalse((self.tmp / "docs/facts/fact_decisions.json").exists())
+        self.assertIn("пробный прогон", done.stdout)
+
+    def test_apply_writes_page_and_req_ids(self) -> None:
+        done = self.run_script("rb_to_info.py", "--panel", "РБ", "--apply")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        decisions = json.loads((self.tmp / "docs/facts/fact_decisions.json").read_text("utf-8"))
+        linked = [entry for entry in decisions.values() if "REQ-0001" in entry.get("req_ids", [])]
+        self.assertEqual(len(linked), 1, decisions)
+        self.assertEqual(linked[0]["page"], 1)
+        self.assertEqual(linked[0]["target"], "info")
+        # требование без факта не создаёт ключ в решениях
+        self.assertNotIn("REQ-0002", [rid for entry in decisions.values()
+                                      for rid in entry.get("req_ids", [])])
+
+
+class TestConfigRequiresPerStep(CorpusCase):
+    def test_build_facts_without_decided_by(self) -> None:
+        config = self.tmp / "docs/facts/config.json"
+        data = json.loads(config.read_text("utf-8"))
+        data.pop("decided_by")
+        config.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        done = self.run_script("build_facts.py")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        failed = self.run_script("apply_fact_decisions.py")
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("decided_by", failed.stderr + failed.stdout)
+        self.assertNotIn("question", failed.stderr + failed.stdout)
+
+
 class TestRows(CorpusCase):
     def test_panel_rows_are_distinguished_by_page(self) -> None:
         rows = corpus.rows("mini-2026")
@@ -216,9 +298,9 @@ class TestDecisions(CorpusCase):
         done = self.run_script("apply_fact_decisions.py")
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         decisions = json.loads((self.tmp / "docs/facts/fact_decisions.json").read_text("utf-8"))
-        self.assertEqual(len(decisions), 2)
+        self.assertEqual(len(decisions), 3)
         for fact_id, decision in decisions.items():
-            self.assertEqual(decision["page"] in (1, 2), True, decision)
+            self.assertEqual(decision["page"] in (1, 2, 3), True, decision)
             self.assertIn("req_ids", decision)
         self.assertEqual({d["target"] for d in decisions.values()}, {"conclusions", "info"})
 

@@ -31,7 +31,7 @@ def fact_id(deck: str, page: int, label: str, value: str) -> str:
 
 
 def main() -> int:
-    config = corpus.load_config()
+    config = corpus.load_config(required=("theme_stems",))
     if not corpus.PAGE_FACTS.is_file():
         raise SystemExit(
             f"нет {corpus.PAGE_FACTS} — атомизация страниц ещё не сделана "

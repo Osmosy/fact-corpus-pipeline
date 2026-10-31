@@ -56,24 +56,28 @@ def requirements_by_text() -> dict[str, list[str]]:
 
 
 def main() -> int:
-    decided_by = corpus.load_config()["decided_by"]
+    decided_by = corpus.load_config(required=("decided_by",))["decided_by"]
     facts = {row["fact_id"]: row for row in corpus.load_facts()}
     reqs = requirements_by_text()
     decisions: dict[str, dict] = (json.loads(corpus.DECISIONS.read_text("utf-8"))
                                   if corpus.DECISIONS.is_file() else {})
     dispositions: dict[str, dict] = (json.loads(corpus.DISPOSITIONS.read_text("utf-8"))
                                      if corpus.DISPOSITIONS.is_file() else {})
-    missing, no_row = [], []
+    missing, no_row, ambiguous = [], [], []
 
     for fact_id, (target, reason) in load_plan().items():
         fact = facts.get(fact_id)
         if not fact:
             missing.append(f"{fact_id}: нет в каноне фактов")
             continue
-        row = corpus.row_for_fact(fact["deck"], fact.get("page"), fact["label"], fact["value"])
+        row, why = corpus.resolve_row(fact["deck"], fact.get("page"), fact["label"], fact["value"])
         if row is None:
-            no_row.append(f"{fact_id}: строка не найдена на стр. {fact.get('page')} "
-                          f"колоды {fact['deck']} — требование не связано")
+            if why and why.startswith("неоднозначно"):
+                ambiguous.append(f"{fact_id}: {why} (стр. {fact.get('page')}, "
+                                 f"{fact['label']} = {fact['value']})")
+            else:
+                no_row.append(f"{fact_id}: строка не найдена на стр. {fact.get('page')} "
+                              f"колоды {fact['deck']} — требование не связано")
             req_ids: list[str] = []
         else:
             req_ids = reqs.get(row["raw"], [])
@@ -101,6 +105,11 @@ def main() -> int:
           f"в выводы {len(decisions) - len(info_rows)}); требований затронуто: {len(dispositions)}")
     for note in no_row + missing:
         print("  ", note)
+    if ambiguous:
+        print(f"нужно решение человека — {len(ambiguous)} факт(ов) с одинаковой подписью и значением "
+              "в разных панелях:")
+        for note in ambiguous:
+            print("  ", note)
     print(f"→ {corpus.rel(corpus.DECISIONS)}, {corpus.rel(corpus.DISPOSITIONS)}")
     return 0
 

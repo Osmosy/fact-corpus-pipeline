@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(os.environ.get("CORPUS_ROOT") or Path.cwd()).resolve()
@@ -40,22 +41,25 @@ TARGETS = ("conclusions", "info", "waive")
 CONFIG_KEYS = ("question", "role", "theme_stems", "decided_by")
 
 
-def load_config(path: Path | None = None) -> dict:
-    """Настройки корпуса. Без файла работа не начинается: угадывать вопрос нельзя."""
+def load_config(path: Path | None = None, required: tuple[str, ...] = CONFIG_KEYS) -> dict:
+    """Настройки корпуса: каждый скрипт просит только те поля, которые ему нужны.
+
+    Сборка канона живёт без `decided_by`, а решения — без `question`; требовать всё сразу
+    значит заставлять заполнять лишнее и падать там, где поле не используется.
+    """
     file = path or CONFIG
     if not file.is_file():
         raise SystemExit(
             f"нет {file} — скопируй scripts/examples/config.example.json в docs/facts/config.json\n"
-            "и заполни question (вопрос исследования), role (роль модели), "
-            "theme_stems (основы слов темы), decided_by (кто принимает решения)"
+            f"и заполни поля: {', '.join(required)}"
         )
     data = json.loads(file.read_text("utf-8"))
-    missing = [key for key in CONFIG_KEYS if not data.get(key)]
+    missing = [key for key in required if not data.get(key)]
     if missing:
-        raise SystemExit(f"{file}: не заполнены поля {', '.join(missing)}")
-    if isinstance(data["theme_stems"], str):
+        raise SystemExit(f"{file}: для этого шага не заполнены поля {', '.join(missing)}")
+    if data.get("theme_stems") and isinstance(data["theme_stems"], str):
         data["theme_stems"] = [word.strip() for word in data["theme_stems"].split(",") if word.strip()]
-    if not isinstance(data["theme_stems"], list):
+    if "theme_stems" in required and not isinstance(data["theme_stems"], list):
         raise SystemExit(f"{file}: theme_stems должен быть списком основ слов")
     return data
 
@@ -71,34 +75,57 @@ def load_facts(deck: str | None = None) -> list[dict]:
     return [row for row in rows if deck is None or row["deck"] == deck]
 
 
-def load_runs(deck: str, include_rejected: bool = False, all_runs: bool = False) -> list[dict]:
+def load_runs(deck: str, include_rejected: bool = False, all_runs: bool = False,
+              report: list | None = None) -> list[dict]:
     """Прогоны колоды, готовые к сравнению.
 
     По контракту в сравнение идут только принятые: непустой ответ и пустой список проблем.
     Отклонённые включаются флагом --include-rejected (для разбора, почему прогон не принят).
     По умолчанию от одного канала берётся последний прогон: иначе перезапуск колоды
     добавляет «ещё одну модель» и переворачивает срезы «выбрали все / ровно один».
+
+    Если последний прогон канала отклонён, берётся предыдущий принятый — и это попадает
+    в `report`: молча подменять свежий прогон старым значит скрывать неудачный перезапуск.
     """
-    fresh = []
+    items = []
     for path in sorted(RUNS.glob(f"{deck}.*.json")):
         try:
             body = json.loads(path.read_text("utf-8"))
         except json.JSONDecodeError:
             continue
-        if not body.get("answer"):
+        problems = body.get("problems") or []
+        answer = body.get("answer")
+        if not answer and not problems:
             continue
-        if body.get("problems") and not include_rejected:
-            continue
-        fresh.append({"backend": body.get("backend") or path.name.split(".")[1],
-                      "stamp": path.stem, "path": path, "body": body})
+        items.append({
+            "backend": body.get("backend") or path.name.split(".")[1],
+            "stamp": path.stem, "path": path, "body": body,
+            "problems": problems, "accepted": bool(answer) and not problems,
+        })
+
+    eligible = [item for item in items if include_rejected or item["accepted"]]
     if not all_runs:
         latest: dict[str, dict] = {}
-        for item in fresh:
+        for item in eligible:
             latest[item["backend"]] = item
-        fresh = [item for item in fresh if latest[item["backend"]] is item]
-    for item in fresh:
+        if report is not None:
+            for backend, taken in latest.items():
+                newer = [item for item in items
+                         if item["backend"] == backend and item["stamp"] > taken["stamp"]
+                         and not item["accepted"]]
+                if newer:
+                    report.append({
+                        "backend": backend,
+                        "taken": taken["stamp"],
+                        "skipped": [item["stamp"] for item in newer],
+                        "reason": (newer[-1]["problems"] or ["пустой ответ"])[0],
+                    })
+        chosen = {id(item) for item in latest.values()}
+        eligible = [item for item in eligible if id(item) in chosen]
+
+    for item in eligible:
         item["name"] = item["backend"] if not all_runs else f"{item['backend']} ({item['stamp']})"
-    return fresh
+    return eligible
 
 
 # --- разбор ответов модели -------------------------------------------------------------
@@ -179,8 +206,8 @@ def markdown(deck: str) -> str:
     return path.read_text("utf-8")
 
 
-def rows(deck: str) -> list[dict]:
-    """Строки таблиц с координатами: страница, панель, ячейки."""
+@lru_cache(maxsize=64)
+def _rows_cached(root: str, deck: str) -> tuple:
     found, page, panel = [], None, ""
     for line in markdown(deck).splitlines():
         stripped = line.strip()
@@ -195,40 +222,78 @@ def rows(deck: str) -> list[dict]:
         if stripped.startswith("|") and not re.fullmatch(r"\|[\s:\-|]+\|", stripped):
             found.append({"page": page, "panel": panel, "cells": _cells(stripped),
                           "raw": stripped})
-    return found
+    return tuple(found)
+
+
+def rows(deck: str) -> list[dict]:
+    """Строки таблиц с координатами: страница, панель, ячейки. Колода читается один раз."""
+    return list(_rows_cached(str(ROOT), deck))
 
 
 def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").replace("ё", "е").replace("Ё", "Е")).strip().lower()
 
 
-def row_for_fact(deck: str, page: int | None, label: str, value: str) -> dict | None:
-    """Строка колоды, из которой взят факт: та же страница, та же подпись, та же ячейка.
+def row_candidates(deck: str, page: int | None, label: str, value: str) -> list[dict]:
+    """Все строки колоды, подходящие под факт: та же страница, подпись и целая ячейка значения.
 
-    Значение сравнивается с целой ячейкой, а не подстрокой: «5» иначе находится в «54,8».
-    Если на одной странице несколько панелей, различить их без страницы невозможно —
-    поэтому страница обязательна.
+    Кандидатов может быть несколько: на одной странице две панели с одинаковой подписью.
+    Решать, какая из них «та», должен не первый попавшийся порядок, а отдельный вызов.
     """
     wanted_label, wanted_value = _norm(label), _norm(value)
-    candidates = [row for row in rows(deck) if page is None or row["page"] == page]
-    for row in candidates:
-        cells = [_norm(cell) for cell in row["cells"]]
-        if not cells:
+    found = []
+    for row in rows(deck):
+        if page is not None and row["page"] != page:
             continue
-        if cells[0] != wanted_label:
+        cells = [_norm(cell) for cell in row["cells"]]
+        if not cells or cells[0] != wanted_label:
             continue
         if wanted_value and wanted_value not in cells:
             continue
-        return row
-    # подпись могла быть длиннее ячейки (обрезана в факте) — ищем по вхождению
-    for row in candidates:
+        found.append(row)
+    if found:
+        return found
+    # подпись могла быть обрезана в факте — ищем по вхождению
+    for row in rows(deck):
+        if page is not None and row["page"] != page:
+            continue
         cells = [_norm(cell) for cell in row["cells"]]
         if not cells:
             continue
         if wanted_label[:40] and wanted_label[:40] in cells[0] and \
                 (not wanted_value or wanted_value in cells):
-            return row
-    return None
+            found.append(row)
+    return found
+
+
+def resolve_row(deck: str, page: int | None, label: str, value: str) -> tuple[dict | None, str | None]:
+    """Строка факта или причина, почему её нет.
+
+    Неоднозначность (одинаковые подпись и значение в разных панелях одной страницы) — это
+    причина «нужно решение человека», а не повод молча связать факт с первой панелью.
+    """
+    candidates = row_candidates(deck, page, label, value)
+    if not candidates:
+        return None, "строка не найдена"
+    if len(candidates) == 1:
+        return candidates[0], None
+    panels = sorted({row["panel"] for row in candidates})
+    if len(panels) > 1:
+        names = ", ".join(panel or "без панели" for panel in panels)
+        return None, f"неоднозначно: панели {names}"
+    return candidates[0], None
+
+
+def row_for_fact(deck: str, page: int | None, label: str, value: str) -> dict | None:
+    return resolve_row(deck, page, label, value)[0]
+
+
+def row_index(deck: str) -> dict[str, list[dict]]:
+    """Дословная строка таблицы → все строки колоды с таким текстом."""
+    index: dict[str, list[dict]] = {}
+    for row in rows(deck):
+        index.setdefault(row["raw"], []).append(row)
+    return index
 
 
 def is_thematic(text: str, stems: list[str]) -> bool:

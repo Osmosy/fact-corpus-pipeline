@@ -52,7 +52,7 @@ def main() -> int:
     parser.add_argument("--reason", default=DEFAULT_REASON)
     args = parser.parse_args()
 
-    config = corpus.load_config()
+    config = corpus.load_config(required=("decided_by",))
     panels = panel_index()
     latest = {}
     for record in corpus.load_jsonl(corpus.REQUIREMENTS):
@@ -61,9 +61,18 @@ def main() -> int:
     decisions = json.loads(corpus.DECISIONS.read_text("utf-8")) if corpus.DECISIONS.is_file() else {}
     dispositions = json.loads(corpus.DISPOSITIONS.read_text("utf-8")) if corpus.DISPOSITIONS.is_file() else {}
 
-    facts_by_deck: dict[str, list[dict]] = {}
+    # индекс строится один раз за запуск: колода читается один раз, факт ищет свою строку
+    # в готовом индексе, а не перечитывает markdown на каждое требование
+    facts_by_raw: dict[tuple[str, str], list[dict]] = {}
+    ambiguous: list[str] = []
     for fact in corpus.load_facts():
-        facts_by_deck.setdefault(fact["deck"], []).append(fact)
+        row, reason = corpus.resolve_row(fact["deck"], fact.get("page"), fact["label"], fact["value"])
+        if row is None:
+            if reason and reason.startswith("неоднозначно"):
+                ambiguous.append(f"{fact['fact_id']}: {reason} (стр. {fact['page']}, "
+                                 f"{fact['label']} = {fact['value']})")
+            continue
+        facts_by_raw.setdefault((fact["deck"], row["raw"]), []).append(fact)
 
     targets = []
     for req_id, record in sorted(latest.items()):
@@ -81,11 +90,7 @@ def main() -> int:
         cells = [cell.strip() for cell in record["raw_text"].strip().strip("|").split("|")]
         label = cells[0] if cells else ""
         value = " / ".join(cells[1:]) if len(cells) > 1 else ""
-        matched = []
-        for fact in facts_by_deck.get(deck, []):
-            row = corpus.row_for_fact(deck, fact.get("page"), fact["label"], fact["value"])
-            if row is not None and row["raw"] == record["raw_text"].strip():
-                matched.append(fact)
+        matched = facts_by_raw.get((deck, record["raw_text"].strip()), [])
         fact = matched[0] if matched else None
         print(f"  {req_id}: стр.{fact['page'] if fact else '—'} — {label[:60]} = {value[:30]}")
         dispositions[req_id] = {"target": "info", "reason": args.reason, "by": config["decided_by"]}
@@ -113,6 +118,11 @@ def main() -> int:
 
     corpus.write_json(corpus.DECISIONS, decisions)
     corpus.write_json(corpus.DISPOSITIONS, dispositions)
+    if ambiguous:
+        print(f"нужно решение человека — {len(ambiguous)} факт(ов) с одинаковой подписью и "
+              "значением в разных панелях:")
+        for note in ambiguous:
+            print("  ", note)
     print(f"записано: решений по фактам {len(decisions)} (связано {linked}, без факта {skipped}), "
           f"диспозиций {len(dispositions)}")
     return 0

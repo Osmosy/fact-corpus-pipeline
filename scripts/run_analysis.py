@@ -158,7 +158,7 @@ def main() -> int:
     parser.add_argument("--thematic-only", action="store_true")
     args = parser.parse_args()
 
-    config = corpus.load_config()
+    config = corpus.load_config(required=("question", "role"))
     facts = corpus.load_facts(args.deck)
     if args.thematic_only:
         facts = [row for row in facts if row["thematic"]]

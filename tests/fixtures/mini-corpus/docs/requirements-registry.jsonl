@@ -1,0 +1,2 @@
+{"req_id": "REQ-0001", "status": "elicited", "strength": "must", "raw_text": "| Нравится вкус продукта | 53,5 % |", "source": {"file": "decks/mini-2026/mini-2026.md", "span": [0, 1]}}
+{"req_id": "REQ-0002", "status": "elicited", "strength": "must", "raw_text": "| Одинаковая строка | 42 % |", "source": {"file": "decks/mini-2026/mini-2026.md", "span": [0, 2]}}

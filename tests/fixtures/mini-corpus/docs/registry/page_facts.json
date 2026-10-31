@@ -45,6 +45,15 @@
               "verified": true
             }
           ]
+        },
+        "3": {
+          "facts": [
+            {
+              "label": "Одинаковая строка",
+              "value": "42 %",
+              "verified": true
+            }
+          ]
         }
       }
     }

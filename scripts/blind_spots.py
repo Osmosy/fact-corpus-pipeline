@@ -77,7 +77,7 @@ def write_list() -> list[dict]:
 
 
 def review(backend: str, model: str) -> int:
-    config = corpus.load_config()
+    config = corpus.load_config(required=("question", "role"))
     rows = write_list()
     prompt = (
         f"Ты {config['role']}. Ниже факты из колод, которые предыдущие прогоны не взяли "

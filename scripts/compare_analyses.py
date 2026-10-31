@@ -66,7 +66,12 @@ def main() -> int:
     out_md = corpus.ROOT / f"docs/facts/COMPARISON-{deck}.md"
     out_json = corpus.ROOT / f"docs/facts/COMPARISON-{deck}.json"
 
-    runs = corpus.load_runs(deck, include_rejected=args.include_rejected, all_runs=args.all_runs)
+    skipped: list[dict] = []
+    runs = corpus.load_runs(deck, include_rejected=args.include_rejected, all_runs=args.all_runs,
+                            report=skipped)
+    for note in skipped:
+        print(f"  {note['backend']}: последний прогон отклонён "
+              f"({note['skipped'][-1]}: {note['reason']}), взят {note['taken']} — принятый")
     if not runs:
         print(f"нет принятых прогонов для {deck}")
         return 2
@@ -119,6 +124,10 @@ def main() -> int:
         "",
         f"Всего фактов в колоде: {len(facts)}",
         "",
+        *( ["> Внимание: последний прогон канала отклонён, взят предыдущий принятый —\n"
+            + "\n".join(f"> {n['backend']}: отклонён {n['skipped'][-1]} ({n['reason']}), "
+                        f"взят {n['taken']}" for n in skipped) + "\n"] if skipped else [] ),
+        "",
         "| | фактов |",
         "|---|---|",
         f"| выбрали все прогоны | {len(consensus)} |",
@@ -163,6 +172,7 @@ def main() -> int:
     corpus.write_json(out_json, {
         "deck": deck,
         "runs": [r["name"] for r in runs],
+        "runs_skipped": skipped,
         "counts": counts,
         "consensus": consensus,
         "majority": majority,
@@ -174,6 +184,8 @@ def main() -> int:
             for cluster in clusters
         ],
     })
+    if skipped:
+        print(f"  пропущено отклонённых: {sum(len(n['skipped']) for n in skipped)}")
     print(f"прогонов {len(runs)}: consensus {len(consensus)}, single {len(single)}, ignored {len(ignored)}, "
           f"кластеров выводов {len(clusters)} (согласны все {len(agreed)})")
     print(f"→ {corpus.rel(out_md)}, {corpus.rel(out_json)}")
