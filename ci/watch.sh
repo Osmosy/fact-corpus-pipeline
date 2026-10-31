@@ -30,7 +30,6 @@ except Exception:
 PY
 )"
 if [ "$PREV" = "$SHA $STATE" ]; then
-  echo "без изменений: $SHA $STATE"
   exit $([ "$RC" -eq 0 ] && echo 0 || echo 1)
 fi
 
