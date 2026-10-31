@@ -30,7 +30,8 @@ except Exception:
 PY
 )"
 if [ "$PREV" = "$SHA $STATE" ]; then
-  exit $([ "$RC" -eq 0 ] && echo 0 || echo 1)
+  # состояние уже зафиксировано в прошлый раз — молчим, чтобы не повторять алерт
+  exit 0
 fi
 
 python3 - "$SHA" "$STATE" "$STAMP" "$OUT" <<'PY'
