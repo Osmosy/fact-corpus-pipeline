@@ -1,0 +1,10 @@
+{
+  "sha": "02c1c5e7e83242571c38b91fe07f06e5ac64d653",
+  "state": "success",
+  "checked_at": "2026-10-31T21:54:17+03:00",
+  "checker": "ci/selfcheck.py",
+  "summary": [
+    "самопроверка: чисто"
+  ],
+  "note": "GitHub Actions недоступен: у токена нет scope workflow. Проверка идёт на машине автора."
+}
