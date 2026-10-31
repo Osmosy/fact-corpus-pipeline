@@ -29,7 +29,7 @@
 | `scripts/run_analysis.py` | прогон модели по фактам колоды со строгим контрактом ответа |
 | `scripts/compare_analyses.py` | четыре среза выбора + кластеры выводов; только принятые прогоны |
 | `scripts/summary_all.py` | картина по корпусу: что взято, что не взял никто |
-| `scripts/blind_spots.py` | слепые зоны и второй проход по ним |
+| `scripts/blind_spots.py` | слепые зоны, второй проход, снимок состава и `--diff` |
 | `scripts/apply_fact_decisions.py` | план решений → `fact_decisions.json` + `dispositions.json` |
 | `scripts/build_appendix.py` | приложение «Справочно» — единственный генератор |
 | `scripts/apply_dispositions.py` | применяет решения к реестру обязательств |
@@ -78,6 +78,7 @@ CORPUS_ROOT=$PWD python3 $SKILL/compare_analyses.py <колода>
 CORPUS_ROOT=$PWD python3 $SKILL/summary_all.py
 CORPUS_ROOT=$PWD python3 $SKILL/blind_spots.py --review ollama
 CORPUS_ROOT=$PWD python3 $SKILL/blind_spots.py --summary
+CORPUS_ROOT=$PWD python3 $SKILL/blind_spots.py --diff      # что изменилось с прошлого снимка
 ```
 
 Без `docs/facts/config.json` скрипты останавливаются: вопрос исследования и основы

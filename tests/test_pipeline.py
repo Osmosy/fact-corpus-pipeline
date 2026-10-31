@@ -191,6 +191,31 @@ class TestExtractObject(unittest.TestCase):
         self.assertEqual(inner["selected"][0]["fact_id"], "F-1")
 
 
+class TestBlindSnapshot(CorpusCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.run_script("build_facts.py")
+
+    def test_snapshot_lists_ids(self) -> None:
+        done = self.run_script("blind_spots.py")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        snapshot = json.loads((self.tmp / "docs/facts/BLIND-SPOTS-IDS.json").read_text("utf-8"))
+        self.assertEqual(snapshot["count"], len(snapshot["ids"]))
+        self.assertTrue(snapshot["ids"])
+
+    def test_diff_reports_what_left_the_theme(self) -> None:
+        self.run_script("blind_spots.py")
+        config = self.tmp / "docs/facts/config.json"
+        data = json.loads(config.read_text("utf-8"))
+        data["theme_stems"] = ["нетакойосновы"]        # тема пустеет: всё уходит из слепых зон
+        config.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        self.run_script("build_facts.py")
+        done = self.run_script("blind_spots.py", "--diff")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("пришли 0", done.stdout.replace(",", ""))
+        self.assertIn("ушёл", done.stdout)
+
+
 class TestSkippedRun(CorpusCase):
     def setUp(self) -> None:
         super().setUp()

@@ -11,12 +11,14 @@
   CORPUS_ROOT=/path/to/project python3 $SKILL/blind_spots.py
   CORPUS_ROOT=/path/to/project python3 $SKILL/blind_spots.py --review zcode
   CORPUS_ROOT=/path/to/project python3 $SKILL/blind_spots.py --summary
+  CORPUS_ROOT=/path/to/project python3 $SKILL/blind_spots.py --diff
 """
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -24,6 +26,7 @@ import corpus  # noqa: E402
 import run_analysis as ra  # noqa: E402
 
 OUT_LIST = corpus.ROOT / "docs/facts/BLIND-SPOTS.md"
+OUT_IDS = corpus.ROOT / "docs/facts/BLIND-SPOTS-IDS.json"
 OUT_REVIEW = corpus.ROOT / "docs/facts/BLIND-SPOTS-REVIEW.json"
 OUT_MD = corpus.ROOT / "docs/facts/BLIND-SPOTS-REVIEW.md"
 
@@ -72,8 +75,35 @@ def write_list() -> list[dict]:
         lines.append(f"| {row['fact_id']} | {row['deck']} | {row['page']} | "
                      f"{row['label'].replace('|', '/')} | {row['value']} |")
     OUT_LIST.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"слепых зон: {len(rows)} → {corpus.rel(OUT_LIST)}")
+    corpus.write_json(OUT_IDS, {
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "count": len(rows),
+        "facts_total": len(corpus.load_facts()),
+        "thematic_total": len([row for row in corpus.load_facts() if row["thematic"]]),
+        "ids": {row["fact_id"]: {"deck": row["deck"], "page": row["page"],
+                                 "label": row["label"], "value": row["value"]} for row in rows},
+    })
+    print(f"слепых зон: {len(rows)} → {corpus.rel(OUT_LIST)}, {corpus.rel(OUT_IDS)}")
     return rows
+
+
+def diff() -> int:
+    """Что изменилось в составе слепых зон с прошлого снимка — по fact_id, а не по счёту."""
+    if not OUT_IDS.is_file():
+        print(f"нет снимка {corpus.rel(OUT_IDS)} — сначала построй список без флагов")
+        return 2
+    before = json.loads(OUT_IDS.read_text("utf-8"))["ids"]
+    current = {row["fact_id"]: row for row in blind()}
+    gone = sorted(set(before) - set(current))
+    came = sorted(set(current) - set(before))
+    print(f"было {len(before)} → стало {len(current)}: ушли {len(gone)}, пришли {len(came)}")
+    for fact_id in gone:
+        row = before[fact_id]
+        print(f"  ушёл  {fact_id} {row['deck']} стр.{row['page']}: {row['label']} = {row['value']}")
+    for fact_id in came:
+        row = current[fact_id]
+        print(f"  пришёл {fact_id} {row['deck']} стр.{row['page']}: {row['label']} = {row['value']}")
+    return 0
 
 
 def review(backend: str, model: str) -> int:
@@ -179,8 +209,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--review", choices=("zcode", "ollama"))
     parser.add_argument("--summary", action="store_true")
+    parser.add_argument("--diff", action="store_true")
     parser.add_argument("--model", default=corpus.LLM_MODEL)
     args = parser.parse_args()
+    if args.diff:
+        return diff()
     if args.summary:
         return summary()
     if args.review:
