@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Хук перед пушем: не отправлять коммит, если репозиторий не проходит самопроверку.
+# Установка: git config core.hooksPath ci/hooks
+set -u
+cd "$(git rev-parse --show-toplevel)" || exit 0
+if ! python3 ci/selfcheck.py; then
+  echo
+  echo "пуш остановлен: самопроверка нашла проблемы (см. вывод выше)."
+  echo "обойти можно так: git push --no-verify"
+  exit 1
+fi
