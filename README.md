@@ -1,5 +1,7 @@
 # fact-corpus-pipeline
 
+![selfcheck](https://github.com/Osmosy/fact-corpus-pipeline/actions/workflows/ci.yml/badge.svg)
+
 Конвейер аналитики корпуса: колоды и отчёты → машиночитаемые факты → анализ несколькими
 моделями → сравнение → решения → проверяемые выводы.
 
@@ -117,19 +119,19 @@ CORPUS_ROOT=$PWD python3 $SKILL/blind_spots.py --summary
 
 ## Проверки
 
-```bash
-python3 ci/selfcheck.py    # 0 — чисто, 1 — список находок
-```
+CI работает в GitHub Actions: матрица Python 3.11–3.13, прогон `ci/selfcheck.py` на каждый
+пуш и пул-реквест.
 
 Самопроверка ловит то, что не ловят тесты: не компилирующийся скрипт, сломанный
 `run_all.sh`, ссылку README на отсутствующий файл, невалидный frontmatter навыка,
-похожее на секрет содержимое. Состояние последней проверки — `ci/last-run.json`
-(машиночитаемо: sha, состояние, время).
+похожее на секрет содержимое.
 
-Запускается двумя путями, не требующими прав на workflows: хуком перед пушем
-(`git config core.hooksPath ci/hooks`) и наблюдателем `ci/watch.sh`, который проверяет
-`origin/main` и переписывает `ci/last-run.json` при смене состояния. GitHub Actions
-подключится одной командой, когда у токена появится scope `workflow` — см. `ci/README.md`.
+```bash
+python3 ci/selfcheck.py    # локально: 0 — чисто, 1 — список находок
+```
+
+Дополнительно в клоне можно включить хук перед пушем, чтобы не отправлять заведомо красное
+состояние: `git config core.hooksPath ci/hooks`.
 
 ## Лицензия
 
