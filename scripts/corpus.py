@@ -121,8 +121,21 @@ def load_facts(deck: str | None = None) -> list[dict]:
     return [row for row in rows if deck is None or row["deck"] == deck]
 
 
+def run_purpose(body: dict) -> str:
+    """Назначение прогона: base — в сравнение, stability — только замер шума.
+
+    Прогоны без поля (всё, что до появления назначения) считаются базовыми, кроме
+    перемешанных: они и делались ради замера шума, и именно они незаметно переписывали
+    основное сравнение.
+    """
+    purpose = body.get("purpose")
+    if purpose:
+        return purpose
+    return "stability" if (body.get("order") or {}).get("shuffled") else "base"
+
+
 def load_runs(deck: str, include_rejected: bool = False, all_runs: bool = False,
-              report: list | None = None) -> list[dict]:
+              report: list | None = None, purposes: tuple[str, ...] = ("base",)) -> list[dict]:
     """Прогоны колоды, готовые к сравнению.
 
     По контракту в сравнение идут только принятые: непустой ответ и пустой список проблем.
@@ -143,8 +156,11 @@ def load_runs(deck: str, include_rejected: bool = False, all_runs: bool = False,
         answer = body.get("answer")
         if not answer and not problems:
             continue
+        if run_purpose(body) not in purposes:
+            continue
         items.append({
             "backend": body.get("backend") or path.name.split(".")[1],
+            "purpose": run_purpose(body),
             "stamp": path.stem, "path": path, "body": body,
             "problems": problems, "accepted": bool(answer) and not problems,
         })

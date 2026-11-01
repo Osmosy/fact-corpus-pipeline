@@ -36,10 +36,15 @@ def main() -> int:
         print(f"нет решений: {ROOT / 'docs/registry/dispositions.json'} (сначала apply_fact_decisions.py)")
         return 0
 
-    invariants = {}
+    # Предикат живёт в двух файлах: v1 (история) и v2 (версия 4). Берём любой из них,
+    # иначе требования, перевыпущенные под новый предикат, остаются «без инварианта».
+    invariants: dict[str, str] = {}
     for record in model.load_jsonl(ROOT / "docs/registry/invariants.jsonl"):
         path = (record.get("predicate") or {}).get("path", "")
-        if path.endswith("check_fact_in_conclusions.py"):
+        if "check_fact_in_conclusions" not in path:
+            continue
+        current = invariants.get(record["req_id"])
+        if current is None or record["inv_id"] > current:
             invariants[record["req_id"]] = record["inv_id"]
 
     waived = checked = 0

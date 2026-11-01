@@ -142,6 +142,12 @@ def review(deck: str, channel: str, model: str | None) -> int:
 def merge() -> int:
     """Свести разборы по колодам и каналам в один файл корпуса."""
     parts = sorted(corpus.ROOT.glob("docs/facts/SINGLE-REVIEW-*.json"))
+    # в слияние идут только факты, которые «выбрал один» в текущем сравнении: после
+    # отделения прогонов шума часть прежних частей устарела
+    current: set[str] = set()
+    for path in corpus.ROOT.glob("docs/facts/COMPARISON-*.json"):
+        for item in json.loads(path.read_text("utf-8")).get("single") or []:
+            current.add(item if isinstance(item, str) else item.get("fact_id"))
     if not parts:
         print("нет частей SINGLE-REVIEW-<колода>-<канал>.json")
         return 2
@@ -153,7 +159,7 @@ def merge() -> int:
         for name, count in (body.get("groups") or {}).items():
             groups[name] = groups.get(name, 0) + count
         for fact_id, row in (body.get("ids") or {}).items():
-            if fact_id in seen:
+            if fact_id in seen or (current and fact_id not in current):
                 continue
             seen[fact_id] = row
             ids[fact_id] = {"label": row["label"], "value": row["value"], "page": row["page"],

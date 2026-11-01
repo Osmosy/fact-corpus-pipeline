@@ -211,6 +211,8 @@ def main() -> int:
     parser.add_argument("--model", default=corpus.LLM_MODEL)
     parser.add_argument("--thematic-only", action="store_true")
     parser.add_argument("--shuffle", action="store_true", help="перемешать порядок фактов в промпте")
+    parser.add_argument("--purpose", choices=("base", "stability"), default=None,
+                        help="назначение прогона: base — в сравнение, stability — только замер шума")
     parser.add_argument("--seed", type=int, default=None)
     args = parser.parse_args()
 
@@ -250,6 +252,7 @@ def main() -> int:
         "seconds": round(time.time() - started, 1),
         "usage": corpus.normalize_usage((meta or {}).get("usage")),
         "order": order,
+        "purpose": args.purpose or ("stability" if args.shuffle else "base"),
         "meta": meta,
         "problems": problems,
         "answer": data,

@@ -29,6 +29,11 @@ import corpus  # noqa: E402
 
 
 def runs_of(deck: str, channel: str | None) -> list[dict]:
+    """Повторы колоды. Если есть прогоны назначения `stability`, берутся только они.
+
+    Базовый прогон шёл без перемешивания и с другим seed — для замера шума он лишний
+    свидетель, но если повторов нет, годится и он.
+    """
     out = []
     for path in sorted(corpus.RUNS.glob(f"{deck}.*.json")):
         body = json.loads(path.read_text("utf-8"))
@@ -40,8 +45,10 @@ def runs_of(deck: str, channel: str | None) -> list[dict]:
                     if isinstance(item, dict)}
         out.append({"path": path.name, "backend": body.get("backend"),
                     "stamp": path.stem.split("-", 1)[-1], "selected": selected,
-                    "order": body.get("order") or {}})
-    return out
+                    "order": body.get("order") or {},
+                    "purpose": corpus.run_purpose(body)})
+    repeats = [item for item in out if item["purpose"] == "stability"]
+    return repeats if len(repeats) >= 2 else out
 
 
 def jaccard(left: set, right: set) -> float:

@@ -133,6 +133,8 @@ def collect() -> dict:
     verdicts = verdict_counts(blind)
 
     requirements_live = proven = 0
+    content_live: list[str] = []
+    content_proven = legend_proven = 0
     registry = corpus.ROOT / "docs/requirements-registry.jsonl"
     if registry.is_file():
         latest: dict[str, dict] = {}
@@ -151,6 +153,10 @@ def collect() -> dict:
                     if row.get("result") == "pass":
                         passed.add(row.get("req_id"))
         proven = len({row["req_id"] for row in live} & passed)
+        legend = set((corpus.load_config(required=()) or {}).get("legend_requirements") or [])
+        content_live = [row["req_id"] for row in live if row["req_id"] not in legend]
+        content_proven = len([req for req in content_live if req in passed])
+        legend_proven = len([req for req in legend if req in passed])
 
     stability: dict[str, float] = {}
     for path in sorted(corpus.ROOT.glob("docs/facts/STABILITY-*.json")):
@@ -210,6 +216,9 @@ def collect() -> dict:
         "requirements.live": requirements_live,
         "requirements.proven": proven,
         "requirements.unproven": max(0, requirements_live - proven),
+        "requirements.content_live": len(content_live),
+        "requirements.content_proven": content_proven,
+        "requirements.legend_proven": legend_proven,
         **stability,
         "decks": comparisons,
         **{f"deck.{name}.consensus": body["consensus"] for name, body in comparisons.items()},
