@@ -131,6 +131,17 @@ def check_dispositions_copy() -> None:
         problems.append(f"dispositions.py в проекте ({project}) разошёлся с репозиторием")
 
 
+def check_numbers() -> list[str]:
+    """Числа в документах сверяются со снимком отчёта — та самая ошибка 43/41 и 76/78."""
+    import subprocess
+    done = subprocess.run([sys.executable, str(ROOT / "ci/numbers.py"), "--quiet"],
+                          capture_output=True, text=True)
+    if done.returncode != 0:
+        return [f"числа в документах расходятся с отчётом: "
+                f"{(done.stdout + done.stderr).strip().splitlines()[:3]}"]
+    return []
+
+
 def main() -> int:
     check_compile()
     check_shell()

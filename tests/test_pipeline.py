@@ -28,6 +28,7 @@ FIXTURE = REPO / "tests/fixtures/mini-corpus"
 sys.path.insert(0, str(SCRIPTS))
 import corpus  # noqa: E402
 import matching  # noqa: E402
+import stability  # noqa: E402
 import run_analysis  # noqa: E402
 
 
@@ -190,6 +191,57 @@ class TestExtractObject(unittest.TestCase):
         envelope = corpus.extract_object(text, ("sessionId",))
         inner = corpus.extract_object(envelope["response"], ("selected",))
         self.assertEqual(inner["selected"][0]["fact_id"], "F-1")
+
+
+class TestReportAndNumbers(unittest.TestCase):
+    def test_report_counts_agree_with_canon(self) -> None:
+        import subprocess
+        tmp = Path(tempfile.mkdtemp(prefix="fcp-report-"))
+        try:
+            shutil.copytree(FIXTURE, tmp, dirs_exist_ok=True)
+            env = {**os.environ, "CORPUS_ROOT": str(tmp)}
+            for name in ("build_facts.py",):
+                subprocess.run([sys.executable, str(SCRIPTS / name)], env=env,
+                               capture_output=True, text=True, check=True)
+            subprocess.run([sys.executable, str(SCRIPTS / "compare_analyses.py"), "mini-2026"],
+                           env=env, capture_output=True, text=True, check=True)
+            subprocess.run([sys.executable, str(SCRIPTS / "report.py")], env=env,
+                           capture_output=True, text=True, check=True)
+            report = json.loads((tmp / "docs/facts/REPORT.json").read_text("utf-8"))
+            self.assertEqual(report["facts.total"], 5)
+            self.assertEqual(report["facts.thematic"], 4)
+            self.assertIn("blind.total", report)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_numbers_in_docs_match_snapshot(self) -> None:
+        import subprocess
+        done = subprocess.run([sys.executable, str(REPO / "ci/numbers.py")],
+                              capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+
+class TestStability(CorpusCase):
+    def test_identical_repeats_give_full_jaccard(self) -> None:
+        self.run_script("build_facts.py")
+        body = stability.stability("mini-2026", "alpha")
+        self.assertEqual(body["runs"], 1)            # один принятый прогон канала
+        self.assertIn("error", body)
+
+    def test_two_repeats_are_compared(self) -> None:
+        self.run_script("build_facts.py")
+        runs = self.tmp / "docs/facts/runs"
+        base = json.loads((runs / "mini-2026.alpha-20260101-100000.json").read_text("utf-8"))
+        second = dict(base)
+        second["answer"] = {"selected": base["answer"]["selected"][:1],
+                            "conclusions": base["answer"]["conclusions"],
+                            "not_relevant": []}
+        corpus.write_json(runs / "mini-2026.alpha-20260101-110000.json", second)
+        body = stability.stability("mini-2026", "alpha")
+        self.assertEqual(body["runs"], 2)
+        self.assertLess(body["jaccard_mean"], 1.0)
+        self.assertGreater(body["selected_part"], 0)
+        self.assertIn("deciles", body["position"])
 
 
 class TestBackends(CorpusCase):

@@ -20,4 +20,7 @@ for deck in "${DECKS[@]}"; do
   done
   python3 "$SCRIPTS/compare_analyses.py" "$deck"
 done
+echo "=== сводка и отчёт ==="
+python3 "$SCRIPTS/summary_all.py" || echo "  сводка не собралась"
+python3 "$SCRIPTS/report.py" || echo "  отчёт не собрался"
 echo "=== готово ==="
