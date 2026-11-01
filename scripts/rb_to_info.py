@@ -89,16 +89,18 @@ def owner_exceptions() -> dict[str, dict]:
             continue
         req_id = str(entry["req_id"])
         if not (entry.get("reason") and entry.get("date") and entry.get("signed_by")):
-            print(f"  исключение {req_id} пропущено: нет причины, даты или подписи")
+            print(f"  исключение {req_id} пропущено: нет причины, даты или подписи",
+                  file=sys.stderr)
             continue
         marker, unknown = normalize_marker(entry.get("require_marker"), aliases)
         for value in unknown:
             print(f"  исключение {req_id}: панель «{value}» в require_marker не найдена "
-                  f"в panel_aliases — маркер не проверяется")
+                  f"в panel_aliases — маркер не проверяется", file=sys.stderr)
         reason = str(entry.get("reason") or "").lower()
         if not marker and any(hint in reason for hint in MARKER_HINTS):
             print(f"  исключение {req_id}: условие записано словами в причине, но поля "
-                  f"require_marker нет — маркер панели проверяться не будет")
+                  f"require_marker нет — маркер панели проверяться не будет",
+                  file=sys.stderr)
         record = dict(entry)
         record["marker"] = marker
         found[req_id] = record
@@ -158,13 +160,18 @@ def main() -> int:
         if panel and panel == args.panel:
             targets.append((req_id, record, deck))
 
+    on_panel_total = sum(1 for record in latest.values()
+                         if deck_of(record)
+                         and panels.get((deck_of(record), record["raw_text"].strip())) == args.panel)
+
     exceptions = owner_exceptions()
     kept = [(req_id, exceptions[req_id]) for req_id, _record, _deck in targets
             if req_id in exceptions]
     if kept:
         targets = [item for item in targets if item[0] not in exceptions]
 
-    print(f"обязательств на панели «{args.panel}»: {len(targets)}")
+    print(f"панель «{args.panel}»: {on_panel_total}, из них в «Справочно» {len(targets)}, "
+          f"исключения владельца {len(kept)}")
     if kept:
         # исключение владельца — не «оставить как есть», а осознанная судьба: требование
         # закрывается выводами, но число в них обязано идти с пометкой панели
@@ -188,7 +195,8 @@ def main() -> int:
             continue
         if fact is None:
             skipped += 1
-            print("     факт не найден — требование остаётся без решения по факту")
+            print("     факт не найден — требование остаётся без решения по факту",
+              file=sys.stderr)
             continue
         decisions[fact["fact_id"]] = {
             "target": "info",
@@ -210,9 +218,9 @@ def main() -> int:
     corpus.write_json(corpus.DISPOSITIONS, dispositions)
     if ambiguous:
         print(f"нужно решение человека — {len(ambiguous)} факт(ов) с одинаковой подписью и "
-              "значением в разных панелях:")
+              "значением в разных панелях:", file=sys.stderr)
         for note in ambiguous:
-            print("  ", note)
+            print("  ", note, file=sys.stderr)
     print(f"записано: решений по фактам {len(decisions)} (связано {linked}, без факта {skipped}), "
           f"диспозиций {len(dispositions)}")
     return 0

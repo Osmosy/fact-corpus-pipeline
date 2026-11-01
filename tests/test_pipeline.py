@@ -719,7 +719,7 @@ class TestRbToInfo(CorpusCase):
         done = self.run_script("rb_to_info.py", "--panel", "РБ")
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertIn("REQ-0001", done.stdout)
-        self.assertNotIn("исключения владельца", done.stdout)
+        self.assertIn("исключения владельца 0", done.stdout)  # в подписи есть, но их нет
 
     def test_owner_exception_keeps_requirement(self) -> None:
         config_path = self.tmp / "docs/facts/config.json"
@@ -751,9 +751,7 @@ class TestRbToInfo(CorpusCase):
              "print(json.dumps(rb_to_info.owner_exceptions(), ensure_ascii=False))", str(SCRIPTS)],
             capture_output=True, text=True, env=env)
         self.assertEqual(done.returncode, 0, done.stderr)
-        # предупреждения печатаются выше ответа: берём последнюю json-строку
-        payload = [line for line in done.stdout.splitlines() if line.strip().startswith("{")][-1]
-        return json.loads(payload)["REQ-0001"]["marker"]
+        return json.loads(done.stdout)["REQ-0001"]["marker"]
 
     def test_marker_as_string_is_read(self) -> None:
         self.assertEqual(self._marker_of({"reason": "конкурент", "require_marker": "РБ"}), ["РБ"])
@@ -770,15 +768,16 @@ class TestRbToInfo(CorpusCase):
                                "signed_by": "владелец", "require_marker": "Литва"}])
         done = self.run_script("rb_to_info.py", "--panel", "РБ")
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-        self.assertIn("не найдена", done.stdout)
-        self.assertIn("Литва", done.stdout)
+        self.assertIn("не найдена", done.stderr)
+        self.assertIn("Литва", done.stderr)
+        self.assertNotIn("Литва", done.stdout)  # предупреждения не пачкают машинный вывод
 
     def test_words_in_reason_without_field_warn(self) -> None:
         self._set_exceptions([{"req_id": "REQ-0001", "date": "2026-11-02", "signed_by": "владелец",
                                "reason": "конкурент; число в выводах только с пометкой «в РБ»"}])
         done = self.run_script("rb_to_info.py", "--panel", "РБ")
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-        self.assertIn("проверяться не будет", done.stdout)
+        self.assertIn("проверяться не будет", done.stderr)
         self.assertIn("исключения владельца → conclusions: 1", done.stdout)  # исключение всё равно работает
 
     def test_reason_text_does_not_change_marker(self) -> None:
@@ -789,6 +788,15 @@ class TestRbToInfo(CorpusCase):
         self.assertEqual(before, after)
         self.assertEqual(after, ["РБ"])
 
+    def test_panel_signature_counts_all_three_groups(self) -> None:
+        """Подпись не выдаёт 8 за всё: на панели 12, в справочно 8, исключений 4."""
+        self._set_exceptions([{"req_id": "REQ-0001", "reason": "конкурент; только с пометкой",
+                               "date": "2026-11-02", "signed_by": "владелец",
+                               "require_marker": "РБ"}])
+        done = self.run_script("rb_to_info.py", "--panel", "РБ")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("панель «РБ»: 2, из них в «Справочно» 1, исключения владельца 1", done.stdout)
+
     def test_exception_without_signature_is_ignored(self) -> None:
         config_path = self.tmp / "docs/facts/config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -796,8 +804,8 @@ class TestRbToInfo(CorpusCase):
         config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
         done = self.run_script("rb_to_info.py", "--panel", "РБ")
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-        self.assertIn("пропущено", done.stdout)
-        self.assertIn("REQ-0001", done.stdout)
+        self.assertIn("пропущено", done.stderr)
+        self.assertIn("REQ-0001", done.stderr)
 
 
 class TestConfigRequiresPerStep(CorpusCase):

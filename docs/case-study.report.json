@@ -39,6 +39,8 @@
  "registry.replay_total": 275,
  "registry.replay_match": 275,
  "rb_material.total": 5,
+ "owner_exceptions.total": 4,
+ "owner_exceptions.with_marker": 4,
  "decisions.rb": 8,
  "decisions.profile": 3,
  "decisions.other": 2,
