@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import math
 import json
 import random
 import statistics
@@ -100,6 +101,114 @@ def decile_effect(deck: str, runs: list[dict]) -> dict:
             "p_value": round(hits / trials, 3), "trials": trials}
 
 
+
+def run_order(deck: str, run: dict) -> list[str]:
+    """Порядок фактов в промпте этого прогона.
+
+    Если порядок сохранён в прогоне (`order_ids`) — берём его. Иначе восстанавливаем
+    перемешивание по записанному seed: тот же алгоритм, что в run_analysis.py, поэтому
+    реконструкция точная. Канонический порядок — только когда прогон не перемешивался.
+    """
+    canonical = [row["fact_id"] for row in corpus.load_facts(deck)]
+    ids = run.get("order_ids")
+    if ids:
+        return [fact_id for fact_id in ids if fact_id in set(canonical)]
+    order = run.get("order") or {}
+    if order.get("shuffled") and order.get("seed") is not None:
+        shuffled = canonical[:]
+        random.Random(int(order["seed"])).shuffle(shuffled)
+        return shuffled
+    return canonical
+
+
+def _normal_p(z: float) -> float:
+    """Двусторонний p по нормальному приближению (эрф, без scipy)."""
+    return math.erfc(abs(z) / math.sqrt(2))
+
+
+def _ranks(values: list[float]) -> list[float]:
+    """Средние ранги с поправкой на совпадения."""
+    order = sorted(range(len(values)), key=lambda i: values[i])
+    ranks = [0.0] * len(values)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        average = (i + j) / 2 + 1
+        for k in range(i, j + 1):
+            ranks[order[k]] = average
+        i = j + 1
+    return ranks
+
+
+def position_test(deck: str, runs: list[dict]) -> dict:
+    """Позиционный тест по колоде: порядок берётся из прогона."""
+    return position_stats(runs, order_of=lambda run: run_order(deck, run))
+
+
+def position_stats(runs: list[dict], order_of) -> dict:
+    """Связь «выбран факт» с его позицией в промпте: на уровне факта, с оценкой мощности.
+
+    Децили отвечали описательно; здесь проверяется сам эффект. В каждом прогоне считается
+    точечно-бисериальная корреляция «позиция → выбран» и U-тест Манна — Уитни между
+    позициями выбранных и пропущенных фактов. Прогоны одного канала объединяются по Фишеру
+    (вес — n − 3). Рядом печатается минимально обнаружимый r при мощности 80 %: без него
+    «эффекта нет» и «эффект есть, но тест слабый» неразличимы.
+    """
+    per_run = []
+    for run in runs:
+        order = order_of(run)
+        n = len(order)
+        if n < 12:
+            continue
+        picked = set(run["selected"]) & set(order)
+        if not picked or len(picked) == n:
+            continue
+        positions = {fact_id: index + 1 for index, fact_id in enumerate(order)}
+        flags = [1.0 if fact_id in picked else 0.0 for fact_id in order]
+        pos = [float(positions[fact_id]) for fact_id in order]
+        p_share = len(picked) / n
+        m1 = sum(pos[i] for i in range(n) if flags[i]) / len(picked)
+        m0 = (sum(pos) - sum(pos[i] for i in range(n) if flags[i])) / (n - len(picked))
+        mean = sum(pos) / n
+        sd = (sum((value - mean) ** 2 for value in pos) / n) ** 0.5
+        r = ((m1 - m0) / sd) * (p_share * (1 - p_share)) ** 0.5 if sd else 0.0
+        ranks = _ranks(pos)
+        rank_sum = sum(ranks[i] for i in range(n) if flags[i])
+        u = rank_sum - len(picked) * (len(picked) + 1) / 2
+        mean_u = len(picked) * (n - len(picked)) / 2
+        sd_u = (len(picked) * (n - len(picked)) * (n + 1) / 12) ** 0.5
+        z = (u - mean_u) / sd_u if sd_u else 0.0
+        per_run.append({"stamp": run["stamp"], "facts": n, "picked": len(picked),
+                        "r": round(r, 3), "mwu_z": round(z, 2),
+                        "p": round(_normal_p(z), 3), "order_source":
+                        "saved" if run.get("order_ids") else ("seed" if (run.get("order") or {}).get("seed") is not None else "canonical")})
+    if not per_run:
+        return {"error": "недостаточно прогонов с пригодным порядком"}
+
+    weights, zs = [], []
+    for item in per_run:
+        weight = max(item["facts"] - 3, 1)
+        weights.append(weight)
+        zs.append(math.atanh(max(min(item["r"], 0.999), -0.999)))
+    combined_r = math.tanh(sum(w * z for w, z in zip(weights, zs)) / sum(weights))
+    total = sum(item["facts"] - 3 for item in per_run) + 3
+    z_combined = math.atanh(max(min(combined_r, 0.999), -0.999)) * math.sqrt(total)
+    p_combined = _normal_p(z_combined)
+    mde = math.tanh((1.959964 + 0.841621) / math.sqrt(max(total - 3, 2)))
+    enough = p_combined < 0.05 and abs(combined_r) >= mde
+    if enough:
+        side = "ранние факты выбираются чаще (r < 0)" if combined_r < 0 else "поздние факты выбираются чаще (r > 0)"
+        verdict = (f"позиционный эффект есть: r = {combined_r:.2f}, p = {p_combined:.3f}, "
+                   f"минимально обнаружимый r = {mde:.2f}; {side}")
+    else:
+        verdict = (f"позиционный эффект не обнаружен: r = {combined_r:.2f}, p = {p_combined:.3f}, "
+                   f"минимально обнаружимый r при этих данных = {mde:.2f} (мощность 80 %)")
+    return {"runs": len(per_run), "per_run": per_run, "combined_r": round(combined_r, 3),
+            "p": round(p_combined, 3), "mde_r": round(mde, 2),
+            "effective_n": total, "verdict": verdict}
+
 def stability(deck: str, channel: str | None = None) -> dict:
     runs = runs_of(deck, channel)
     if len(runs) < 2:
@@ -116,6 +225,7 @@ def stability(deck: str, channel: str | None = None) -> dict:
     part = sum(1 for fact_id in facts if 0 < selected_counts.get(fact_id, 0) < len(runs))
     never = sum(1 for fact_id in facts if not selected_counts.get(fact_id, 0))
     position = decile_effect(deck, runs)
+    effect = position_test(deck, runs)
     return {
         "deck": deck, "channel": channel or "все принятые",
         "runs": len(runs), "stamps": [run["stamp"] for run in runs],
@@ -124,7 +234,7 @@ def stability(deck: str, channel: str | None = None) -> dict:
         "jaccard_min": round(min(pairs), 3),
         "selected_all": common, "selected_part": part, "selected_none": never,
         "selected_share_all": round(common / len(facts), 3) if facts else 0.0,
-        "position": position, "trend": trend(position),
+        "position": position, "trend": trend(position), "position_effect": effect,
     }
 
 

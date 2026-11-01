@@ -230,7 +230,8 @@ def main() -> int:
         seed = args.seed if args.seed is not None else int(time.time())
         facts = list(facts)
         random.Random(seed).shuffle(facts)
-        order = {"shuffled": True, "seed": seed}
+        order = {"shuffled": True, "seed": seed,
+                 "order_ids": [row["fact_id"] for row in facts]}
     prompt = build_prompt(args.deck, facts, config)
     print(f"{args.backend}: {len(facts)} фактов, промпт {len(prompt)} символов")
     started = time.time()

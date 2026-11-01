@@ -158,6 +158,14 @@ def collect() -> dict:
         content_proven = len([req for req in content_live if req in passed])
         legend_proven = len([req for req in legend if req in passed])
 
+    disposition_counts: dict[str, int] = {}
+    dispositions_path = corpus.ROOT / "docs/registry/dispositions.json"
+    if dispositions_path.is_file():
+        for entry in json.loads(dispositions_path.read_text(encoding="utf-8")).values():
+            target = entry.get("target") if isinstance(entry, dict) else None
+            if target:
+                disposition_counts[target] = disposition_counts.get(target, 0) + 1
+
     stability: dict[str, float] = {}
     for path in sorted(corpus.ROOT.glob("docs/facts/STABILITY-*.json")):
         body = json.loads(path.read_text("utf-8"))
@@ -169,6 +177,11 @@ def collect() -> dict:
         stability[f"{prefix}.all"] = body.get("selected_all")
         stability[f"{prefix}.never"] = body.get("selected_none")
         stability[f"{prefix}.spearman"] = (body.get("trend") or {}).get("spearman")
+        effect = body.get("position_effect") or {}
+        if effect.get("runs"):
+            stability[f"{prefix}.position_r"] = effect.get("combined_r")
+            stability[f"{prefix}.position_p"] = effect.get("p")
+            stability[f"{prefix}.mde_r"] = effect.get("mde_r")
 
     single_path = corpus.ROOT / "docs/facts/SINGLE-REVIEW.json"
     single: dict = {}
@@ -219,6 +232,8 @@ def collect() -> dict:
         "requirements.content_live": len(content_live),
         "requirements.content_proven": content_proven,
         "requirements.legend_proven": legend_proven,
+        "requirements.info": disposition_counts.get("info", 0),
+        "requirements.conclusions": disposition_counts.get("conclusions", 0),
         **stability,
         "decks": comparisons,
         **{f"deck.{name}.consensus": body["consensus"] for name, body in comparisons.items()},

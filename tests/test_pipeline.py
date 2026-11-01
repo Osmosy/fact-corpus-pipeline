@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -296,6 +297,44 @@ class TestStabilityTrend(unittest.TestCase):
         position = {"deciles": [{"missed_share": share}
                                 for share in (0.27, 1.0, 0.27, 0.91, 0.0)]}
         self.assertFalse(stability.trend(position)["monotone"])
+
+
+class TestPositionEffect(unittest.TestCase):
+    """Связь позиции факта с выбором: эффект, мощность, объединение повторов."""
+
+    def _runs(self, seeds: int, picked) -> list[dict]:
+        order = [f"F-{i}" for i in range(40)]
+        runs = []
+        for seed in range(seeds):
+            shuffled = order[:]
+            random.Random(seed).shuffle(shuffled)
+            runs.append({"stamp": f"s{seed}", "selected": set(picked(shuffled)),
+                         "facts": len(shuffled), "order_ids": shuffled})
+        return runs
+
+    def test_tail_loss_is_detected(self) -> None:
+        runs = self._runs(4, lambda order: order[:30])
+        body = stability.position_stats(runs, order_of=lambda run: run["order_ids"])
+        self.assertLess(body["combined_r"], -body["mde_r"])
+        self.assertLess(body["p"], 0.05)
+        self.assertIn("позиционный эффект есть", body["verdict"])
+        self.assertIn("ранние факты", body["verdict"])
+
+    def test_no_effect_reports_unmeasured_power(self) -> None:
+        runs = self._runs(4, lambda order: order[::2])
+        body = stability.position_stats(runs, order_of=lambda run: run["order_ids"])
+        self.assertIn("не обнаружен", body["verdict"])
+        self.assertIn("минимально обнаружимый", body["verdict"])
+        self.assertGreater(body["mde_r"], 0)
+
+    def test_saved_order_wins_over_canonical(self) -> None:
+        run = {"stamp": "s", "selected": {"F-0"}, "facts": 40,
+               "order": {"shuffled": True, "seed": 5,
+                         "order_ids": [f"F-{i}" for i in range(39, -1, -1)]}}
+        body = stability.position_stats([run, {**run, "selected": {"F-1"}}],
+                                        order_of=lambda item: item["order"]["order_ids"])
+        self.assertEqual(body["per_run"][0]["picked"], 1)
+        self.assertEqual(body["per_run"][0]["facts"], 40)
 
 
 class TestReportAndNumbers(unittest.TestCase):
@@ -622,6 +661,20 @@ class TestRbToInfo(CorpusCase):
         # требование без факта не создаёт ключ в решениях
         self.assertNotIn("REQ-0002", [rid for entry in decisions.values()
                                       for rid in entry.get("req_ids", [])])
+
+    def test_material_fact_is_not_proposed_for_transfer(self) -> None:
+        """Панель РБ не переводит материал двух каналов в «Справочно» (REQ-0008)."""
+        facts_dir = self.tmp / "docs/facts"
+        (facts_dir / "BLIND-SPOTS-REVIEW.json").write_text(json.dumps(
+            {"zcode": {"verdicts": {}}, "ollama": {"verdicts": {}}}), encoding="utf-8")
+        env = {**os.environ, "CORPUS_ROOT": str(self.tmp)}
+        done = subprocess.run(
+            [sys.executable, "-c",
+             "import sys, json; sys.path.insert(0, sys.argv[1]);"
+             "import rb_to_info; print(json.dumps(sorted(rb_to_info.material_fact_ids())))",
+             str(SCRIPTS)], capture_output=True, text=True, env=env)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(json.loads(done.stdout), [])
 
 
 class TestConfigRequiresPerStep(CorpusCase):

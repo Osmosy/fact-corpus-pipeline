@@ -39,7 +39,7 @@
 | `scripts/verdicts.py` | общий контракт вердиктов и сводка по факту | — |
 | `scripts/single_pick.py` | разбор фактов «выбрал один» + метка повторов | `SINGLE-REVIEW.md` |
 | `scripts/theme_audit.py` | аудит границы темы на нетематических фактах | `THEME-AUDIT.md` |
-| `scripts/stability.py` | шум повторов: Жаккар, децили позиции, тренд и вердикт | `STABILITY-*.md` |
+| `scripts/stability.py` | шум повторов: Жаккар, децили, позиционный тест на уровне факта с минимально обнаружимым r | `STABILITY-*.md` |
 | `scripts/cost_report.py` | расход по артефактам прогонов | `COST.json` |
 | `scripts/report.py` | единый отчёт с ключами чисел | `REPORT.json/.md` |
 | `scripts/run_all.sh` | все колоды × все каналы |
