@@ -34,6 +34,12 @@ def add(bucket: dict, backend: str, usage: dict, seconds: float | None) -> None:
         row["runs_no_usage"] += 1
 
 
+SCOPE = ("Счётчик пула в кабинете — аккаунтный: он складывает все запросы ZCode за период "
+         "акции, включая диалоги и разбор вердиктов, которые в runs/ не попадают. Расход "
+         "конвейера — сумма usage.pool_units по runs/ (единица = totalTokens ответа). "
+         "Сравнивать остаток пула с расходом корпуса нельзя: это разные счёта.")
+
+
 def collect() -> dict:
     by_deck: dict[str, dict] = {}
     if corpus.RUNS.is_dir():
@@ -57,7 +63,7 @@ def collect() -> dict:
         for backend, row in channels.items():
             add(totals, backend, {field: row[field] for field in
                                   ("input_tokens", "output_tokens", "pool_units")}, row["seconds"])
-    return {"decks": by_deck, "totals": totals}
+    return {"scope": SCOPE, "decks": by_deck, "totals": totals}
 
 
 def main() -> int:

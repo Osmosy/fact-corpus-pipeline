@@ -166,6 +166,33 @@ def collect() -> dict:
             if target:
                 disposition_counts[target] = disposition_counts.get(target, 0) + 1
 
+
+    # сколько «справочно» стоит на панели РБ: считаем по панели факта, а не по тексту причины
+    facts_path = corpus.FACTS
+    decisions_path = corpus.ROOT / "docs/facts/fact_decisions.json"
+    panel_facts: dict[str, str] = {}
+    if facts_path.is_file():
+        for line in facts_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                row = json.loads(line)
+                panel_facts[row["fact_id"]] = row.get("panel") or ""
+    fact_reqs: dict[str, list[str]] = {}
+    if decisions_path.is_file():
+        for fact_id, entry in json.loads(decisions_path.read_text(encoding="utf-8")).items():
+            for req_id in (entry.get("req_ids") or []):
+                fact_reqs.setdefault(req_id, []).append(fact_id)
+    rb_info = 0
+    dispositions_all = {}
+    if (corpus.ROOT / "docs/registry/dispositions.json").is_file():
+        dispositions_all = json.loads(
+            (corpus.ROOT / "docs/registry/dispositions.json").read_text(encoding="utf-8"))
+    for req_id, entry in dispositions_all.items():
+        if not isinstance(entry, dict) or entry.get("target") != "info":
+            continue
+        if any(panel_facts.get(fact_id) == "РБ" for fact_id in fact_reqs.get(req_id, [])):
+            rb_info += 1
+    disposition_counts["info:РБ"] = rb_info
+
     stability: dict[str, float] = {}
     for path in sorted(corpus.ROOT.glob("docs/facts/STABILITY-*.json")):
         body = json.loads(path.read_text("utf-8"))
@@ -234,6 +261,7 @@ def collect() -> dict:
         "requirements.legend_proven": legend_proven,
         "requirements.info": disposition_counts.get("info", 0),
         "requirements.conclusions": disposition_counts.get("conclusions", 0),
+        "requirements.rb": disposition_counts.get("info:РБ", 0),
         **stability,
         "decks": comparisons,
         **{f"deck.{name}.consensus": body["consensus"] for name, body in comparisons.items()},

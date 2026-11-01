@@ -662,19 +662,38 @@ class TestRbToInfo(CorpusCase):
         self.assertNotIn("REQ-0002", [rid for entry in decisions.values()
                                       for rid in entry.get("req_ids", [])])
 
-    def test_material_fact_is_not_proposed_for_transfer(self) -> None:
-        """Панель РБ не переводит материал двух каналов в «Справочно» (REQ-0008)."""
+    def test_panel_fact_is_transferred_even_if_material(self) -> None:
+        """Правило рынка без исключений по материальности (решение 02.11.2026)."""
         facts_dir = self.tmp / "docs/facts"
+        fact_id = json.loads((facts_dir / "facts.jsonl").read_text(encoding="utf-8").splitlines()[0])["fact_id"]
         (facts_dir / "BLIND-SPOTS-REVIEW.json").write_text(json.dumps(
-            {"zcode": {"verdicts": {}}, "ollama": {"verdicts": {}}}), encoding="utf-8")
-        env = {**os.environ, "CORPUS_ROOT": str(self.tmp)}
-        done = subprocess.run(
-            [sys.executable, "-c",
-             "import sys, json; sys.path.insert(0, sys.argv[1]);"
-             "import rb_to_info; print(json.dumps(sorted(rb_to_info.material_fact_ids())))",
-             str(SCRIPTS)], capture_output=True, text=True, env=env)
-        self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual(json.loads(done.stdout), [])
+            {"zcode": {"verdicts": {fact_id: {"verdict": "material"}}},
+             "ollama": {"verdicts": {fact_id: {"verdict": "material"}}}}), encoding="utf-8")
+        done = self.run_script("rb_to_info.py", "--panel", "РБ")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("REQ-0001", done.stdout)
+        self.assertNotIn("исключения владельца", done.stdout)
+
+    def test_owner_exception_keeps_requirement(self) -> None:
+        config_path = self.tmp / "docs/facts/config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["owner_exceptions"] = [{"req_id": "REQ-0001", "reason": "нужен в выводах",
+                                       "date": "2026-11-02", "signed_by": "владелец"}]
+        config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+        done = self.run_script("rb_to_info.py", "--panel", "РБ")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("исключения владельца, остаются как есть: 1", done.stdout)
+        self.assertNotIn("REQ-0001: стр.", done.stdout)  # не попал в переводимые
+
+    def test_exception_without_signature_is_ignored(self) -> None:
+        config_path = self.tmp / "docs/facts/config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["owner_exceptions"] = [{"req_id": "REQ-0001", "reason": "без подписи"}]
+        config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+        done = self.run_script("rb_to_info.py", "--panel", "РБ")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("пропущено", done.stdout)
+        self.assertIn("REQ-0001", done.stdout)
 
 
 class TestConfigRequiresPerStep(CorpusCase):

@@ -32,26 +32,25 @@ def deck_of(record: dict) -> str:
     return parts[1] if len(parts) > 2 and parts[0] == "decks" else ""
 
 
-def material_fact_ids() -> set[str]:
-    """Факты, признанные материалом: согласие в сравнении или вердикты слепых зон.
+def owner_exceptions() -> dict[str, dict]:
+    """Явные исключения владельца из правила рынка: только данными, не правилом в коде.
 
-    Панель РБ означает, где измерено, а не является ли факт опорой выводов. Поэтому материал
-    двух каналов правило рынка не переводит (решение владельца, REQ-0008).
+    Формат `config.json → owner_exceptions`: [{"req_id": "REQ-00NN", "reason": "...",
+    "date": "ГГГГ-ММ-ДД", "signed_by": "кто"}]. Пустой список — нормальное состояние:
+    правило действует без исключений. Исключение без причины, даты и подписи не принимается.
     """
-    found: set[str] = set()
-    for path in sorted((corpus.ROOT / "docs/facts").glob("COMPARISON-*.json")):
-        body = json.loads(path.read_text(encoding="utf-8"))
-        found.update(body.get("consensus") or [])
-    review_path = corpus.ROOT / "docs/facts/BLIND-SPOTS-REVIEW.json"
-    if review_path.is_file():
-        review = json.loads(review_path.read_text(encoding="utf-8"))
-        for channel in review.values():
-            if not isinstance(channel, dict):
-                continue
-            for fact_id, verdict in (channel.get("verdicts") or {}).items():
-                value = verdict.get("verdict") if isinstance(verdict, dict) else verdict
-                if str(value) == "material":
-                    found.add(fact_id)
+    try:
+        configured = (corpus.load_config(required=()) or {}).get("owner_exceptions") or []
+    except SystemExit:
+        return {}
+    found: dict[str, dict] = {}
+    for entry in configured:
+        if not isinstance(entry, dict) or not entry.get("req_id"):
+            continue
+        if not (entry.get("reason") and entry.get("date") and entry.get("signed_by")):
+            print(f"  исключение {entry.get('req_id')} пропущено: нет причины, даты или подписи")
+            continue
+        found[str(entry["req_id"])] = entry
     return found
 
 
@@ -107,26 +106,17 @@ def main() -> int:
         if panels.get((deck, record["raw_text"].strip())) == args.panel:
             targets.append((req_id, record, deck))
 
-    # материал по двум каналам правило рынка не переводит: панель говорит, где измерено,
-    # а не является ли факт опорой выводов (решение владельца 02.11.2026, REQ-0008)
-    material_facts = material_fact_ids()
-    kept = []
-    if material_facts:
-        remaining = []
-        for req_id, record, deck in targets:
-            matched = facts_by_raw.get((deck, record["raw_text"].strip()), [])
-            fact = matched[0] if matched else None
-            if fact and fact["fact_id"] in material_facts:
-                kept.append((req_id, fact))
-            else:
-                remaining.append((req_id, record, deck))
-        targets = remaining
+    exceptions = owner_exceptions()
+    kept = [(req_id, exceptions[req_id]) for req_id, _record, _deck in targets
+            if req_id in exceptions]
+    if kept:
+        targets = [item for item in targets if item[0] not in exceptions]
 
     print(f"обязательств на панели «{args.panel}»: {len(targets)}")
     if kept:
-        print(f"  оставлены в выводах, потому что факт — материал по вердиктам: {len(kept)}")
-        for req_id, fact in kept:
-            print(f"    {req_id}: {fact['label'][:50]} = {fact['value'][:20]} (стр.{fact['page']})")
+        print(f"  исключения владельца, остаются как есть: {len(kept)}")
+        for req_id, entry in kept:
+            print(f"    {req_id}: {entry.get('reason')} ({entry.get('date')}, {entry.get('signed_by')})")
     linked = skipped = 0
     for req_id, record, deck in targets:
         cells = [cell.strip() for cell in record["raw_text"].strip().strip("|").split("|")]
