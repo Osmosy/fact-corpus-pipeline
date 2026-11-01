@@ -11,7 +11,12 @@
   - рядом со словами «фактов», «слепых», «тематических», «обязательств» стоит число без
     разметки → предупреждение (не ошибка: не всякая цифра — число корпуса);
   - `<!-- было -->119<!-- /было -->` — историческое значение: сверять не с чем, из проверки
-    исключается. Так помечаются числа «до правок» в аудите; текущие всё равно размечены ключами.
+    исключается. Так помечаются числа «до правок» в аудите; текущие всё равно размечены ключами;
+  - ключи, связанные по смыслу (`owner_exceptions.with_marker` и `.total`), обязаны совпадать:
+    иначе текст остаётся согласованным со снимком, а смысл — нет.
+
+Граница проверки: снимок копируется из проекта вручную, поэтому сверяется текст со снимком,
+а не снимок с корпусом. Числа корпуса проверяются только на стороне проекта.
 
 Запуск: python3 ci/numbers.py [--quiet]
 """
@@ -26,6 +31,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT = ROOT / "docs/case-study.report.json"
 DOCS = ("README.md", "SKILL.md", "docs/case-study.md", "docs/audit-2026-11.md")
+# соотношения между ключами: если разойдутся, текст останется «правильным», а смысл — нет
+PAIRS = (("owner_exceptions.with_marker", "owner_exceptions.total",
+          "у каждого исключения должен быть маркер панели"),)
 MARK = re.compile(r"<!--\s*n:([A-Za-z0-9_.\-]+)\s*-->(.*?)<!--\s*/n\s*-->", re.S)
 # историческое значение: сверять не с чем — оно описывает состояние до правок, а не текущее
 HIST = re.compile(r"<!--\s*было\s*-->(.*?)<!--\s*/было\s*-->", re.S)
@@ -51,6 +59,9 @@ def main() -> int:
     numbers = json.loads(SNAPSHOT.read_text("utf-8"))
 
     problems: list[str] = []
+    for left, right, why in PAIRS:
+        if left in numbers and right in numbers and numbers[left] != numbers[right]:
+            problems.append(f"снимок: `{left}` = {numbers[left]}, а `{right}` = {numbers[right]} — {why}")
     warnings: list[str] = []
     marked = 0
     historical = 0

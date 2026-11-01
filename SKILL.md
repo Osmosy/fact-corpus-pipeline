@@ -1,7 +1,7 @@
 ---
 name: fact-corpus-pipeline
 description: Use when decks must become facts, model analyses, verdicts.
-version: 2.4.4
+version: 2.4.5
 author: Hermes Agent
 license: MIT
 platforms: [linux]
@@ -256,10 +256,12 @@ metadata:
    для фактов «выбрал один»; `theme_audit.py --sample N` для границы темы.
 8. Решения: `apply_fact_decisions.py` (план `docs/facts/plan.json`), `rb_to_info.py` (если есть
    второстепенный рынок), `build_appendix.py`, `apply_dispositions.py`.
-9. `cost_report.py`, `report.py`; числа в документах размечены ключами вида `n:facts.total` (HTML-комментарий
-   вокруг числа), `ci/numbers.py` сверяет их со снимком отчёта.
-9. Гейты: `coverage`, `drift`, `replay`; цифры — в README, а не в переписке.
-10. Тесты: `python3 -m unittest discover -s tests -t .` — на синтетическом корпусе, без сети.
+9. `cost_report.py`, `report.py`; числа в документах размечены ключами вида `n:facts.total`
+   (HTML-комментарий вокруг числа), `ci/numbers.py` сверяет их со снимком отчёта. Снимок
+   копируется из проекта вручную, поэтому проверка ловит расхождение текста со снимком, а не
+   снимка с корпусом: «CI проверяет числа корпуса» — неверная формулировка.
+10. Гейты: `coverage`, `drift`, `replay`; цифры — в README, а не в переписке.
+11. Тесты: `python3 -m unittest discover -s tests -t .` — на синтетическом корпусе, без сети.
 
 Каждый скрипт требует из конфига только свои поля: `build_facts.py` — `theme_stems`,
 `run_analysis.py` и `blind_spots.py --review` — `question` и `role`, решения — `decided_by`.
