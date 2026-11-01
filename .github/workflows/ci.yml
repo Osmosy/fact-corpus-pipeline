@@ -32,6 +32,16 @@ jobs:
           python -m pip install .
           fcp list
 
+      - name: fcp вне клона
+        run: |
+          cd "$(mktemp -d)"
+          fcp list
+          set +e
+          fcp facts
+          code=$?
+          set -e
+          test "$code" -eq 2 || { echo "ожидался код 2, получен $code"; exit 1; }
+
       - name: Демо-корпус офлайн
         run: python ci/demo.py
 

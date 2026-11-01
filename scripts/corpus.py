@@ -268,6 +268,62 @@ def markdown(deck: str) -> str:
     return path.read_text("utf-8")
 
 
+BUILTIN_PANEL_ALIASES = {"РФ": ["РФ", "🇷🇺", "Россия"],
+                         "РБ": ["РБ", "🇧🇾", "Беларусь", "Республика Беларусь"]}
+
+
+def panel_aliases() -> dict[str, list[str]]:
+    """Синонимы панелей: config.json → panel_aliases, иначе встроенные РФ/РБ.
+
+    Встроенные нужны, чтобы фикстуры и проекты без конфига работали так же: иначе флаг 🇧🇾
+    перестаёт быть панелью, и правило «РБ → справочно» молча не срабатывает.
+    """
+    try:
+        configured = (load_config(required=()) or {}).get("panel_aliases")
+    except SystemExit:
+        configured = None
+    return configured or BUILTIN_PANEL_ALIASES
+
+
+def normalize_panel(name: str) -> str:
+    """Каноническое имя панели по синониму: «🇧🇾», «Беларусь», «рб» → «РБ».
+
+    Заголовок без синонима возвращается как есть — молча подменять его каноническим именем
+    нельзя, иначе правило «РБ → справочно» начнёт срабатывать там, где панель не распознана.
+    """
+    text = (name or "").strip().lower()
+    for canonical, synonyms in panel_aliases().items():
+        for synonym in [canonical, *synonyms]:
+            if text.startswith(str(synonym).strip().lower()):
+                return canonical
+    return (name or "").strip()
+
+
+MARKET_HINTS = ("рб", "рф", "беларус", "росси", "казахстан", "🇧🇾", "🇷🇺", "🇰🇿")
+
+
+def _is_known_panel(raw: str) -> bool:
+    text = (raw or "").strip().lower()
+    for canonical, synonyms in panel_aliases().items():
+        if text == canonical.lower() or text in {str(s).strip().lower() for s in synonyms}:
+            return True
+    return False
+
+
+def unknown_panels(deck: str) -> list[str]:
+    """Заголовки панелей колоды, для которых нет синонима в конфиге."""
+    found = []
+    for line in markdown(deck).splitlines():
+        match = PANEL_HEADING.match(line.strip())
+        if not match:
+            continue
+        raw = match.group(1).strip()
+        if _is_known_panel(raw) or not any(hint in raw.lower() for hint in MARKET_HINTS):
+            continue
+        found.append(raw)
+    return sorted(set(found))
+
+
 @lru_cache(maxsize=64)
 def _rows_cached(root: str, deck: str) -> tuple:
     found, page, panel = [], None, ""
@@ -279,7 +335,13 @@ def _rows_cached(root: str, deck: str) -> tuple:
             continue
         match = PANEL_HEADING.match(stripped)
         if match:
-            panel = match.group(1)
+            raw = match.group(1).strip()
+            canonical = normalize_panel(raw)
+            # ### в колодах — не только панели: подзаголовки слайдов тоже. Панелью считается
+            # лишь заголовок с известным синонимом, иначе в «панели» попадает текст слайда.
+            panel = canonical if canonical.lower() != raw.lower() or _is_known_panel(raw) else ""
+            if panel:
+                panel = canonical
             continue
         if stripped.startswith("|") and not re.fullmatch(r"\|[\s:\-|]+\|", stripped):
             found.append({"page": page, "panel": panel, "cells": _cells(stripped),

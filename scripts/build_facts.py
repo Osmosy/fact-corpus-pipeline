@@ -88,10 +88,17 @@ def main() -> int:
                     duplicates += 1
                     continue
                 seen.add(identifier)
+                panel = ""
+                try:
+                    row, _why = corpus.resolve_row(deck, page, label, value)
+                    panel = (row or {}).get("panel") or ""
+                except Exception:  # noqa: BLE001 — панель не повод терять факт
+                    panel = ""
                 rows.append({
                     "fact_id": identifier,
                     "deck": deck,
                     "page": page,
+                    "panel": panel,
                     "label": label,
                     "value": value,
                     "thematic": corpus.is_thematic(f"{label} {value}", config["theme_stems"]),

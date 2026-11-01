@@ -174,7 +174,17 @@ python3 -m unittest discover -s tests -t .       # конвейер на син�
 Дополнительно в клоне можно включить хук перед пушем, чтобы не отправлять заведомо красное
 состояние: `git config core.hooksPath ci/hooks`.
 
-## Установка в Hermes
+## Установка
+
+`fcp` — тонкая обёртка над `scripts/`: пакет ставит команду, но сами скрипты остаются в клоне
+репозитория. Поэтому `fcp` работает из клона (или с `FCP_SCRIPTS=<путь к scripts>`), а после
+`pip install` вне клона команда скажет, где искала каталог, и как его указать:
+
+```bash
+pip install .
+FCP_SCRIPTS=$HOME/projects/fact-corpus-pipeline/scripts fcp facts --strict
+```
+ в Hermes
 
 Каталог навыка — `~/.hermes/skills/research/fact-corpus-pipeline/` (или клон репозитория на
 его месте). Тогда `SKILL.md` подхватывается на запросах вида «сделай аналитику по этим

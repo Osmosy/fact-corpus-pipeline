@@ -42,7 +42,13 @@ def scripts_dir() -> Path:
     for path in candidates:
         if (path / "corpus.py").is_file():
             return path
-    raise SystemExit("не нашёл каталог scripts (задайте FCP_SCRIPTS)")
+    seen = "\n".join(f"  {path}" for path in candidates)
+    print("не нашёл каталог scripts — пакет его не содержит, он лежит в клоне репозитория.",
+          file=sys.stderr)
+    print(f"Искал:\n{seen}", file=sys.stderr)
+    print("Укажите каталог явно, например:\n"
+          "  FCP_SCRIPTS=$HOME/projects/fact-corpus-pipeline/scripts fcp facts", file=sys.stderr)
+    raise SystemExit(2)
 
 
 def main(argv: list[str] | None = None) -> int:

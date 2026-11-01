@@ -196,6 +196,17 @@ class TestExtractObject(unittest.TestCase):
         self.assertEqual(inner["selected"][0]["fact_id"], "F-1")
 
 
+class TestPanelAliases(unittest.TestCase):
+    def test_flag_and_text_give_same_panel(self) -> None:
+        self.assertEqual(corpus.normalize_panel("🇧🇾"), "РБ")
+        self.assertEqual(corpus.normalize_panel("РБ"), "РБ")
+        self.assertEqual(corpus.normalize_panel("Беларусь"), "РБ")
+        self.assertEqual(corpus.normalize_panel("🇷🇺"), "РФ")
+
+    def test_slide_subtitle_is_not_a_panel(self) -> None:
+        self.assertEqual(corpus.normalize_panel("Что стоит за ростом?"), "Что стоит за ростом?")
+
+
 class TestVerdicts(unittest.TestCase):
     def test_summary_is_per_fact_not_per_model(self) -> None:
         by_channel = {"a": {"F-1": {"verdict": "material"}, "F-2": {"verdict": "material"},
