@@ -1,7 +1,7 @@
 ---
 name: fact-corpus-pipeline
 description: Use when decks must become facts, model analyses, verdicts.
-version: 2.4.3
+version: 2.4.4
 author: Hermes Agent
 license: MIT
 platforms: [linux]

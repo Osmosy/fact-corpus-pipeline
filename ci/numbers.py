@@ -9,7 +9,9 @@
   - размеченное число расходится со снимком → находка (код 1);
   - ключ размечен, но его нет в снимке → находка;
   - рядом со словами «фактов», «слепых», «тематических», «обязательств» стоит число без
-    разметки → предупреждение (не ошибка: не всякая цифра — число корпуса).
+    разметки → предупреждение (не ошибка: не всякая цифра — число корпуса);
+  - `<!-- было -->119<!-- /было -->` — историческое значение: сверять не с чем, из проверки
+    исключается. Так помечаются числа «до правок» в аудите; текущие всё равно размечены ключами.
 
 Запуск: python3 ci/numbers.py [--quiet]
 """
@@ -23,8 +25,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT = ROOT / "docs/case-study.report.json"
-DOCS = ("README.md", "SKILL.md", "docs/case-study.md")
+DOCS = ("README.md", "SKILL.md", "docs/case-study.md", "docs/audit-2026-11.md")
 MARK = re.compile(r"<!--\s*n:([A-Za-z0-9_.\-]+)\s*-->(.*?)<!--\s*/n\s*-->", re.S)
+# историческое значение: сверять не с чем — оно описывает состояние до правок, а не текущее
+HIST = re.compile(r"<!--\s*было\s*-->(.*?)<!--\s*/было\s*-->", re.S)
 
 
 def same(left: str, right: str) -> bool:
@@ -49,6 +53,8 @@ def main() -> int:
     problems: list[str] = []
     warnings: list[str] = []
     marked = 0
+    historical = 0
+    historical = 0
     for name in DOCS:
         path = ROOT / name
         if not path.is_file():
@@ -62,7 +68,9 @@ def main() -> int:
             expected = str(numbers[key])
             if not same(value, expected):
                 problems.append(f"{name}: `{key}` = {value.strip()}, в отчёте {expected}")
-        clean = MARK.sub(lambda match: " " * len(match.group(0)), text)
+        historical += len(HIST.findall(text))
+        # исторические значения вырезаются до поиска «числа без разметки»: сверять их не с чем
+        clean = MARK.sub(lambda match: " " * len(match.group(0)), HIST.sub(" ", text))
         for word, number in NEAR.findall(clean):
             warnings.append(f"{name}: «{word} … {number}» без разметки — если это число "
                             f"корпуса, разметьте ключом")
@@ -74,8 +82,8 @@ def main() -> int:
             print("предупреждение:", item)
         if len(warnings) > 10:
             print(f"предупреждений всего: {len(warnings)}")
-        print(f"чисел размечено: {marked}, расхождений: {len(problems)}, "
-              f"предупреждений: {len(warnings)}")
+        print(f"чисел размечено: {marked}, исторических: {historical}, "
+              f"расхождений: {len(problems)}, предупреждений: {len(warnings)}")
     return 1 if problems else 0
 
 
