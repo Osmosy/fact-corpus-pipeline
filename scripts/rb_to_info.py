@@ -32,25 +32,76 @@ def deck_of(record: dict) -> str:
     return parts[1] if len(parts) > 2 and parts[0] == "decks" else ""
 
 
+MARKER_HINTS = ("пометк", "маркер", "с пометкой", "только с")
+
+
+def normalize_marker(value, aliases: dict[str, list[str]]) -> tuple[list[str], list[str]]:
+    """Значение `require_marker` → список названий панелей; вторым — неизвестные значения.
+
+    Пишут по-разному: `"РБ"`, `"🇧🇾"`, `["РБ", "РФ"]`. Панель приводится к каноническому
+    названию через `panel_aliases`, чтобы чекер и это правило говорили на одном языке.
+    """
+    if value is None or value == "":
+        return [], []
+    raw = value if isinstance(value, list) else [value]
+    known: list[str] = []
+    unknown: list[str] = []
+    for item in raw:
+        text = str(item).strip()
+        if not text:
+            continue
+        if text in aliases:
+            if text not in known:
+                known.append(text)
+            continue
+        match = next((panel for panel, words in aliases.items()
+                      if any(str(word).strip() == text for word in words or [])), "")
+        if match:
+            if match not in known:
+                known.append(match)
+        elif text not in unknown:
+            unknown.append(text)
+    return known, unknown
+
+
 def owner_exceptions() -> dict[str, dict]:
     """Явные исключения владельца из правила рынка: только данными, не правилом в коде.
 
     Формат `config.json → owner_exceptions`: [{"req_id": "REQ-00NN", "reason": "...",
-    "date": "ГГГГ-ММ-ДД", "signed_by": "кто"}]. Пустой список — нормальное состояние:
-    правило действует без исключений. Исключение без причины, даты и подписи не принимается.
+    "date": "ГГГГ-ММ-ДД", "signed_by": "кто", "require_marker": "РБ"}]. Пустой список —
+    нормальное состояние: правило действует без исключений. Исключение без причины, даты
+    и подписи не принимается.
+
+    `require_marker` — структурный признак: какие панели обязаны быть помечены в выводах.
+    Условие, записанное словами в причине, проверяться не будет, поэтому про него отдельное
+    предупреждение. В записи остаётся приведённое значение (`marker`), чтобы чекер не
+    разбирал текст и не зависел от формулировки.
     """
     try:
-        configured = (corpus.load_config(required=()) or {}).get("owner_exceptions") or []
+        config = corpus.load_config(required=()) or {}
     except SystemExit:
         return {}
+    aliases = config.get("panel_aliases") or {}
+    configured = config.get("owner_exceptions") or []
     found: dict[str, dict] = {}
     for entry in configured:
         if not isinstance(entry, dict) or not entry.get("req_id"):
             continue
+        req_id = str(entry["req_id"])
         if not (entry.get("reason") and entry.get("date") and entry.get("signed_by")):
-            print(f"  исключение {entry.get('req_id')} пропущено: нет причины, даты или подписи")
+            print(f"  исключение {req_id} пропущено: нет причины, даты или подписи")
             continue
-        found[str(entry["req_id"])] = entry
+        marker, unknown = normalize_marker(entry.get("require_marker"), aliases)
+        for value in unknown:
+            print(f"  исключение {req_id}: панель «{value}» в require_marker не найдена "
+                  f"в panel_aliases — маркер не проверяется")
+        reason = str(entry.get("reason") or "").lower()
+        if not marker and any(hint in reason for hint in MARKER_HINTS):
+            print(f"  исключение {req_id}: условие записано словами в причине, но поля "
+                  f"require_marker нет — маркер панели проверяться не будет")
+        record = dict(entry)
+        record["marker"] = marker
+        found[req_id] = record
     return found
 
 
@@ -119,7 +170,9 @@ def main() -> int:
         # закрывается выводами, но число в них обязано идти с пометкой панели
         print(f"  исключения владельца → conclusions: {len(kept)}")
         for req_id, entry in kept:
-            print(f"    {req_id}: {entry.get('reason')} ({entry.get('date')}, {entry.get('signed_by')})")
+            marker = ", ".join(entry.get("marker") or []) or "нет — число без пометки панели"
+            print(f"    {req_id}: маркер «{marker}» — {entry.get('reason')} "
+                  f"({entry.get('date')}, {entry.get('signed_by')})")
             dispositions[req_id] = {"target": "conclusions", "reason": entry.get("reason"),
                                     "by": entry.get("signed_by") or config["decided_by"]}
     linked = skipped = 0

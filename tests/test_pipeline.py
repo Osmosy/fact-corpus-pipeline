@@ -732,6 +732,63 @@ class TestRbToInfo(CorpusCase):
         self.assertIn("исключения владельца → conclusions: 1", done.stdout)
         self.assertNotIn("REQ-0001: стр.", done.stdout)  # не попал в переводимые
 
+    def _set_exceptions(self, entries: list[dict]) -> None:
+        config_path = self.tmp / "docs/facts/config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        aliases = config.setdefault("panel_aliases", {})
+        aliases["РБ"] = ["РБ", "🇧🇾", "Беларусь"]
+        aliases["РФ"] = ["РФ", "🇷🇺", "Россия"]
+        config["owner_exceptions"] = entries
+        config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+
+    def _marker_of(self, entry: dict) -> list[str]:
+        self._set_exceptions([{"req_id": "REQ-0001", "date": "2026-11-02",
+                               "signed_by": "владелец", **entry}])
+        env = {**os.environ, "CORPUS_ROOT": str(self.tmp)}
+        done = subprocess.run(
+            [sys.executable, "-c",
+             "import sys, json; sys.path.insert(0, sys.argv[1]); import rb_to_info;"
+             "print(json.dumps(rb_to_info.owner_exceptions(), ensure_ascii=False))", str(SCRIPTS)],
+            capture_output=True, text=True, env=env)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        # предупреждения печатаются выше ответа: берём последнюю json-строку
+        payload = [line for line in done.stdout.splitlines() if line.strip().startswith("{")][-1]
+        return json.loads(payload)["REQ-0001"]["marker"]
+
+    def test_marker_as_string_is_read(self) -> None:
+        self.assertEqual(self._marker_of({"reason": "конкурент", "require_marker": "РБ"}), ["РБ"])
+
+    def test_marker_as_list_is_read(self) -> None:
+        self.assertEqual(self._marker_of({"reason": "оба рынка", "require_marker": ["РБ", "РФ"]}),
+                         ["РБ", "РФ"])
+
+    def test_marker_synonym_resolves_to_panel_name(self) -> None:
+        self.assertEqual(self._marker_of({"reason": "конкурент", "require_marker": "🇧🇾"}), ["РБ"])
+
+    def test_unknown_marker_panel_warns(self) -> None:
+        self._set_exceptions([{"req_id": "REQ-0001", "reason": "конкурент", "date": "2026-11-02",
+                               "signed_by": "владелец", "require_marker": "Литва"}])
+        done = self.run_script("rb_to_info.py", "--panel", "РБ")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("не найдена", done.stdout)
+        self.assertIn("Литва", done.stdout)
+
+    def test_words_in_reason_without_field_warn(self) -> None:
+        self._set_exceptions([{"req_id": "REQ-0001", "date": "2026-11-02", "signed_by": "владелец",
+                               "reason": "конкурент; число в выводах только с пометкой «в РБ»"}])
+        done = self.run_script("rb_to_info.py", "--panel", "РБ")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("проверяться не будет", done.stdout)
+        self.assertIn("исключения владельца → conclusions: 1", done.stdout)  # исключение всё равно работает
+
+    def test_reason_text_does_not_change_marker(self) -> None:
+        before = self._marker_of({"reason": "конкурент; только с пометкой «в РБ»",
+                                  "require_marker": "РБ"})
+        after = self._marker_of({"reason": "переписанная причина без лишних слов",
+                                 "require_marker": "РБ"})
+        self.assertEqual(before, after)
+        self.assertEqual(after, ["РБ"])
+
     def test_exception_without_signature_is_ignored(self) -> None:
         config_path = self.tmp / "docs/facts/config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))

@@ -209,6 +209,15 @@ def collect() -> dict:
             else:
                 runs_base += 1
 
+    # исключения владельца: сколько их и у скольких задан структурный маркер панели
+    owner_exceptions: list[dict] = []
+    if dispositions_all:
+        try:
+            import rb_to_info
+            owner_exceptions = list(rb_to_info.owner_exceptions().values())
+        except (ImportError, SystemExit):
+            owner_exceptions = []
+
     # раскладка решений: единица — требование, категории не пересекаются
     decision_breakdown: dict[str, int] = {}
     if dispositions_all:
@@ -345,6 +354,9 @@ def collect() -> dict:
         "registry.replay_total": replay_total,
         "registry.replay_match": replay_match,
         "rb_material.total": len(rb_material),
+        "owner_exceptions.total": len(owner_exceptions),
+        "owner_exceptions.with_marker": sum(1 for entry in owner_exceptions
+                                            if entry.get("marker")),
         **decision_breakdown,
         **stability,
         "decks": comparisons,
