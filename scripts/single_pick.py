@@ -26,23 +26,55 @@ import corpus  # noqa: E402
 import run_analysis as ra  # noqa: E402
 import verdicts  # noqa: E402
 
-OUT = corpus.ROOT / "docs/facts/SINGLE-REVIEW.json"
+OUT = corpus.ROOT / "docs/facts/SINGLE-REVIEW.json"          # слияние по корпусу
 OUT_MD = corpus.ROOT / "docs/facts/SINGLE-REVIEW.md"
 OUT_IDS = corpus.ROOT / "docs/facts/SINGLE-IDS.json"
 
 
-def single_facts(deck: str) -> list[dict]:
-    """Факты «выбрал ровно один» из сравнения: id и канал, который их взял."""
+def single_facts(deck: str, not_by: str | None = None) -> list[dict]:
+    """Факты «выбрал ровно один»; `not_by` — оставить те, что этот канал не выбирал.
+
+    Оценивать факт должна та модель, которая его не взяла: иначе это самооценка.
+    """
     path = corpus.ROOT / f"docs/facts/COMPARISON-{deck}.json"
     if not path.is_file():
         return []
     body = json.loads(path.read_text("utf-8"))
     facts = {row["fact_id"]: row for row in corpus.load_facts(deck)}
+    picked = picked_by_channel(deck)
     out = []
     for item in body.get("single") or []:
-        fact_id = item.get("fact_id")
-        if fact_id in facts:
-            out.append({**facts[fact_id], "picked_by": item.get("backend") or item.get("by")})
+        fact_id = item if isinstance(item, str) else item.get("fact_id")
+        if not fact_id or fact_id not in facts:
+            continue
+        channels = picked.get(fact_id, [])
+        if not_by and not_by in channels:
+            continue                      # канал сам выбрал факт — это была бы самооценка
+        out.append({**facts[fact_id], "picked_by": ",".join(channels)})
+    return out
+
+
+def picked_by_channel(deck: str) -> dict[str, list[str]]:
+    """Какие каналы выбирали факт — по тем прогонам, что вошли в сравнение.
+
+    Повторы пилота складывать нельзя: факт, выбранный в одном повторе из трёх, формально
+    «выбран обоими каналами», и оба канала от него отказываются — факт выпадает из разбора.
+    Поэтому берётся последний принятый прогон на канал, как и в compare_analyses.
+    """
+    last: dict[str, dict] = {}
+    for run in corpus.load_runs(deck):
+        body = run.get("body", run)
+        backend = body["backend"]
+        if backend not in last or run.get("stamp", "") >= last[backend].get("stamp", ""):
+            last[backend] = run
+    out: dict[str, list[str]] = {}
+    for backend, run in last.items():
+        body = run.get("body", run)
+        for item in (body.get("answer") or {}).get("selected", []):
+            if isinstance(item, dict) and item.get("fact_id"):
+                channels = out.setdefault(item["fact_id"], [])
+                if backend not in channels:
+                    channels.append(backend)
     return out
 
 
@@ -62,7 +94,7 @@ def repeat_counts(deck: str) -> dict[str, dict[str, int]]:
 
 
 def review(deck: str, channel: str, model: str | None) -> int:
-    rows = single_facts(deck)
+    rows = single_facts(deck, not_by=channel)
     if not rows:
         print(f"нет фактов «выбрал один» для {deck} — сначала compare_analyses.py")
         return 2
@@ -90,23 +122,63 @@ def review(deck: str, channel: str, model: str | None) -> int:
                "usage": corpus.normalize_usage((meta or {}).get("usage")),
                "problems": problems, "groups": {name: len(items) for name, items in groups.items()},
                "ids": ids}
-    corpus.write_json(OUT, payload)
-    corpus.write_json(OUT_IDS, {"deck": deck, "channel": channel,
-                                "ids": {fact_id: {"label": row["label"], "value": row["value"],
-                                                  "verdict": row["verdict"]}
-                                        for fact_id, row in ids.items()}})
+    part = corpus.ROOT / f"docs/facts/SINGLE-REVIEW-{deck}-{channel}.json"
+    corpus.write_json(part, payload)
     lines = [f"# Факты «выбрал один»: {deck}", "",
              f"канал {channel}, фактов {len(rows)}, материал {payload['groups']['all_material']}, "
              f"фон {payload['groups']['all_background']}"]
     for fact_id, row in sorted(ids.items(), key=lambda kv: (kv[1]["verdict"] or "")):
         lines.append(f"- {fact_id} стр.{row['page']} | {row['label']} = {row['value']} → "
                      f"{row['verdict']} ({row['why'][:80]})")
-    OUT_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    part_md = corpus.ROOT / f"docs/facts/SINGLE-REVIEW-{deck}-{channel}.md"
+    part_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
     for problem in problems:
         print("  проблема:", problem)
     print(f"материал {payload['groups']['all_material']}, фон {payload['groups']['all_background']} → "
-          f"{corpus.rel(OUT)}")
+          f"{corpus.rel(part)}")
     return 0 if not problems else 1
+
+
+def merge() -> int:
+    """Свести разборы по колодам и каналам в один файл корпуса."""
+    parts = sorted(corpus.ROOT.glob("docs/facts/SINGLE-REVIEW-*.json"))
+    if not parts:
+        print("нет частей SINGLE-REVIEW-<колода>-<канал>.json")
+        return 2
+    ids: dict[str, dict] = {}
+    groups = {"all_material": 0, "split": 0, "all_background": 0, "not_all_answered": 0}
+    seen: dict[str, dict] = {}
+    for path in parts:
+        body = json.loads(path.read_text("utf-8"))
+        for name, count in (body.get("groups") or {}).items():
+            groups[name] = groups.get(name, 0) + count
+        for fact_id, row in (body.get("ids") or {}).items():
+            if fact_id in seen:
+                continue
+            seen[fact_id] = row
+            ids[fact_id] = {"label": row["label"], "value": row["value"], "page": row["page"],
+                            "deck": row["deck"], "verdict": row.get("verdict"),
+                            "repeat_picks": row.get("repeat_picks"),
+                            "reviewed_by": body["channel"]}
+    payload = {"total": len(ids), "parts": len(parts), "groups": groups, "ids": ids,
+               "material": sum(1 for row in ids.values() if row.get("verdict") == "material")}
+    corpus.write_json(OUT, payload)
+    corpus.write_json(OUT_IDS, {"total": len(ids),
+                                "ids": {fact_id: {"label": row["label"], "value": row["value"]}
+                                        for fact_id, row in ids.items()}})
+    lines = ["# Факты «выбрал один»: разбор", "",
+             f"всего {len(ids)} (частей {len(parts)}): материал {groups.get('all_material', 0)}, "
+             f"фон {groups.get('all_background', 0)}, спорные {groups.get('split', 0)}, "
+             f"ответили не все {groups.get('not_all_answered', 0)}", "",
+             "| факт | колода | стр. | подпись | значение | вердикт | повторов |",
+             "|---|---|---|---|---|---|---|"]
+    for fact_id, row in sorted(ids.items(), key=lambda kv: str(kv[1].get("verdict"))):
+        lines.append(f"| {fact_id} | {row['deck']} | {row['page']} | {row['label']} | "
+                     f"{row['value']} | {row.get('verdict')} | {row.get('repeat_picks')} |")
+    OUT_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"слито {len(ids)} фактов из {len(parts)} частей: материал {groups.get('all_material', 0)}, "
+          f"фон {groups.get('all_background', 0)} → {corpus.rel(OUT)}")
+    return 0
 
 
 def diff() -> int:
@@ -133,9 +205,12 @@ def main() -> int:
     parser.add_argument("--channel", default=None)
     parser.add_argument("--model", default=None)
     parser.add_argument("--diff", action="store_true")
+    parser.add_argument("--merge", action="store_true")
     args = parser.parse_args()
     if args.diff:
         return diff()
+    if args.merge:
+        return merge()
     if not (args.deck and args.channel):
         print("нужны --deck и --channel")
         return 2

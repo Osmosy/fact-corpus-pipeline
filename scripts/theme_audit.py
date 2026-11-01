@@ -29,10 +29,12 @@ import run_analysis as ra  # noqa: E402
 
 OUT = corpus.ROOT / "docs/facts/THEME-AUDIT.json"
 OUT_MD = corpus.ROOT / "docs/facts/THEME-AUDIT.md"
-TASK = """Ниже факты, которые конвейер счёл нетематическими (не про вопрос). Проверь это:
-верни по каждому {"fact_id", "theme": "yes|no", "why", "stem": "основа слова, которой не хватает"}.
-theme=yes — факт всё-таки про вопрос; stem — короткая основа (3–6 букв), по которой такие
-факты ловились бы."""
+TASK = """Ниже факты, которые конвейер счёл нетематическими (не про вопрос). Проверь каждый.
+Верни ТОЛЬКО JSON такого вида:
+{"verdicts": [{"fact_id": "F-…", "theme": "yes|no", "why": "до 12 слов", "stem": "основа"}]}
+theme=yes — факт всё-таки про вопрос; theme=no — граница верна;
+stem — короткая основа (3–6 букв), по которой такие факты ловились бы (только при yes).
+fact_id бери дословно из списка, у каждого факта из списка должен быть вердикт."""
 
 
 def candidates(thematic: bool = False) -> list[dict]:
@@ -70,7 +72,11 @@ def audit(channel: str, sample: int | None, seed: int, model: str | None) -> int
         print(f"ответ не разбирается: {error}")
         return 1
 
-    items = body.get("verdicts") if isinstance(body, dict) else None
+    items = None
+    if isinstance(body, dict):
+        items = body.get("verdicts") or body.get("facts") or body.get("items")
+    elif isinstance(body, list):
+        items = body
     if not isinstance(items, list):
         print("в ответе нет списка verdicts")
         return 1

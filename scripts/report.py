@@ -115,7 +115,10 @@ def collect() -> dict:
         body = json.loads(path.read_text("utf-8"))
         deck = body.get("deck") or path.stem.replace("COMPARISON-", "")
         clusters = body.get("clusters") or []
-        comparisons[deck] = {"runs": len(body.get("runs") or []),
+        shared_here = sum(1 for cluster in clusters
+                          if len({claim.get("by") for claim in cluster.get("claims") or []}) > 1)
+        comparisons[deck] = {"clusters": len(clusters), "shared": shared_here,
+                             "runs": len(body.get("runs") or []),
                              "consensus": len(body.get("consensus") or []),
                              "single": len(body.get("single") or []),
                              "ignored": len(body.get("ignored") or []),
@@ -162,12 +165,23 @@ def collect() -> dict:
         stability[f"{prefix}.spearman"] = (body.get("trend") or {}).get("spearman")
 
     single_path = corpus.ROOT / "docs/facts/SINGLE-REVIEW.json"
-    single = {}
+    single: dict = {}
     if single_path.is_file():
         body = json.loads(single_path.read_text("utf-8"))
+        groups = body.get("groups") or {}
         single = {"total": len(body.get("ids") or {}),
-                  "material": sum(1 for item in (body.get("ids") or {}).values()
-                                  if item.get("verdict") == "material")}
+                  "material": groups.get("all_material", 0),
+                  "background": groups.get("all_background", 0),
+                  "split": groups.get("split", 0),
+                  "unanswered": groups.get("not_all_answered", 0)}
+
+    theme: dict = {}
+    theme_path = corpus.ROOT / "docs/facts/THEME-AUDIT.json"
+    if theme_path.is_file():
+        body = json.loads(theme_path.read_text("utf-8"))
+        theme = {"sample": body.get("sample"), "answered": body.get("answered"),
+                 "mistaken": body.get("thematic"), "not_thematic": body.get("not_thematic"),
+                 "share": body.get("share_mistaken")}
 
     return {
         "facts.total": len(facts),
@@ -187,11 +201,19 @@ def collect() -> dict:
         "comparison.clusters_shared": clusters_shared,
         "single.total": single.get("total", single_total),
         "single.material": single.get("material", 0),
+        "single.background": single.get("background", 0),
+        "single.split": single.get("split", 0),
+        "theme.sample": theme.get("sample"),
+        "theme.answered": theme.get("answered"),
+        "theme.mistaken": theme.get("mistaken"),
+        "theme.share": theme.get("share"),
         "requirements.live": requirements_live,
         "requirements.proven": proven,
         "requirements.unproven": max(0, requirements_live - proven),
         **stability,
         "decks": comparisons,
+        **{f"deck.{name}.consensus": body["consensus"] for name, body in comparisons.items()},
+        **{f"deck.{name}.single": body["single"] for name, body in comparisons.items()},
         **per_deck,
         "costs.pool_units": costs(),
         "gates": {name: body for name in ("coverage", "drift", "replay")

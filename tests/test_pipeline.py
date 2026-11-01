@@ -29,6 +29,7 @@ sys.path.insert(0, str(SCRIPTS))
 import corpus  # noqa: E402
 import matching  # noqa: E402
 import stability  # noqa: E402
+import single_pick  # noqa: E402
 import verdicts  # noqa: E402
 import run_analysis  # noqa: E402
 
@@ -214,6 +215,41 @@ class TestVerdicts(unittest.TestCase):
         parsed, problems = verdicts.parse('{"verdicts": [{"fact_id": "F-1", "verdict": "noise"}]}')
         self.assertEqual(parsed, {})
         self.assertTrue(problems)
+
+
+class TestSinglePick(unittest.TestCase):
+    def test_channel_does_not_review_its_own_picks(self) -> None:
+        """Вердикт даёт канал, который факт не выбрал: иначе это самооценка."""
+        import single_pick
+        runs = [{"stamp": "20260101-100000",
+                 "body": {"backend": "alpha", "answer": {"selected": [{"fact_id": "F-1"},
+                                                                      {"fact_id": "F-2"}]}}},
+                {"stamp": "20260101-100000",
+                 "body": {"backend": "beta", "answer": {"selected": [{"fact_id": "F-1"}]}}}]
+        original = corpus.load_runs
+        corpus.load_runs = lambda deck: runs
+        try:
+            picked = single_pick.picked_by_channel("demo")
+            self.assertEqual(sorted(picked["F-1"]), ["alpha", "beta"])
+            self.assertEqual(picked["F-2"], ["alpha"])
+        finally:
+            corpus.load_runs = original
+
+    def test_only_last_accepted_run_per_channel_counts(self) -> None:
+        """Повторы одного канала не делают факт «выбранным обоими»."""
+        import single_pick
+        runs = [{"stamp": "20260101-100000",
+                 "body": {"backend": "alpha", "answer": {"selected": [{"fact_id": "F-9"}]}}},
+                {"stamp": "20260102-100000",
+                 "body": {"backend": "alpha", "answer": {"selected": []}}},
+                {"stamp": "20260101-100000",
+                 "body": {"backend": "beta", "answer": {"selected": []}}}]
+        original = corpus.load_runs
+        corpus.load_runs = lambda deck: runs
+        try:
+            self.assertEqual(single_pick.picked_by_channel("demo").get("F-9"), None)
+        finally:
+            corpus.load_runs = original
 
 
 class TestStabilityTrend(unittest.TestCase):
