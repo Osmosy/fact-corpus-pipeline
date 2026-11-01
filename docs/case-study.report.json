@@ -22,10 +22,11 @@
  "theme.answered": 40,
  "theme.mistaken": 4,
  "theme.share": 0.1,
- "requirements.live": 40,
- "requirements.proven": 29,
- "requirements.unproven": 11,
+ "requirements.live": 39,
+ "requirements.proven": 39,
+ "requirements.unproven": 0,
  "definitions.total": 3,
+ "background.total": 1,
  "requirements.info": 13,
  "requirements.conclusions": 7,
  "requirements.rb_info": 8,
@@ -34,8 +35,8 @@
  "runs.base": 14,
  "runs.stability": 11,
  "runs.rejected": 1,
- "registry.replay_total": 275,
- "registry.replay_match": 275,
+ "registry.replay_total": 276,
+ "registry.replay_match": 276,
  "rb_material.total": 5,
  "owner_exceptions.total": 4,
  "owner_exceptions.with_marker": 4,
@@ -113,5 +114,5 @@
  "deck.sbermarket-serebryanyy-vozrast-2026.thematic": 5,
  "deck.sbermarket-serebryanyy-vozrast-2026.taken": 33,
  "runs.total": 26,
- "requirements.proven_free": 9
+ "requirements.proven_free": 19
 }

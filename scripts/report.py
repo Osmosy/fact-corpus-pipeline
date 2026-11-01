@@ -132,7 +132,7 @@ def collect() -> dict:
              if row["thematic"] and row["fact_id"] not in taken_all}
     verdicts = verdict_counts(blind)
 
-    requirements_live = proven = definitions = 0
+    requirements_live = proven = definitions = background = 0
     registry = corpus.ROOT / "docs/requirements-registry.jsonl"
     if registry.is_file():
         latest: dict[str, dict] = {}
@@ -145,7 +145,8 @@ def collect() -> dict:
         # определение задаёт термины (легенда вердиктов), обещания не несёт: в счёте
         # «доказано N из M» его нет, но запись живая и доказательства её никуда не деваются
         live = [row for row in alive if row.get("kind") in ("requirement", "constraint")]
-        definitions = len(alive) - len(live)
+        definitions = len([row for row in alive if row.get("kind") == "definition"])
+        background = len([row for row in alive if row.get("kind") == "background"])
         requirements_live = len(live)
         evidence = corpus.ROOT / "docs/registry/evidence.jsonl"
         passed: set[str] = set()
@@ -341,6 +342,7 @@ def collect() -> dict:
         "requirements.proven": proven,
         "requirements.unproven": max(0, requirements_live - proven),
         "definitions.total": definitions,
+        "background.total": background,
         "requirements.info": disposition_counts.get("info", 0),
         "requirements.conclusions": disposition_counts.get("conclusions", 0),
         "requirements.rb_info": disposition_counts.get("info:РБ", 0),

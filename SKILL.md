@@ -1,7 +1,7 @@
 ---
 name: fact-corpus-pipeline
 description: Use when decks must become facts, model analyses, verdicts.
-version: 2.5.0
+version: 2.5.1
 author: Hermes Agent
 license: MIT
 platforms: [linux]
@@ -267,6 +267,10 @@ metadata:
 живость сохраняются, но в счёт «доказано N из M» они не входят — они ничего не обещают.
 `revise --kind definition` добавляет ревизию, ничего не удаляя; `drift` такие записи
 доказательств не требует, `replay` их по-прежнему проверяет.
+
+То же правило — для материала колоды: если в реестр попал слайд или его заголовок целиком,
+это `kind: background`, а не обещание. Требование с raw_text вида «## Слайд N — …» доказать
+в выводах нельзя, и держать его в drift значит показывать ложный пробел.
 11. Тесты: `python3 -m unittest discover -s tests -t .` — на синтетическом корпусе, без сети.
 
 Каждый скрипт требует из конфига только свои поля: `build_facts.py` — `theme_stems`,
