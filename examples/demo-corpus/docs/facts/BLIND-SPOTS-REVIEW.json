@@ -1,0 +1,62 @@
+{
+ "alpha": {
+  "meta": {
+   "usage": {
+    "prompt_tokens": 200,
+    "completion_tokens": 60,
+    "total_tokens": 260
+   },
+   "seconds": 1.0,
+   "model": "demo-alpha",
+   "answer_found": true
+  },
+  "verdicts": {
+   "F-7517ce65bd31": {
+    "fact_id": "F-7517ce65bd31",
+    "verdict": "material",
+    "why": "материал"
+   },
+   "F-45ff44a90e98": {
+    "fact_id": "F-45ff44a90e98",
+    "verdict": "background",
+    "why": "материал"
+   },
+   "F-cf4ad64c2fe1": {
+    "fact_id": "F-cf4ad64c2fe1",
+    "verdict": "material",
+    "why": "материал"
+   }
+  },
+  "missing": []
+ },
+ "beta": {
+  "meta": {
+   "usage": {
+    "prompt_tokens": 200,
+    "completion_tokens": 60,
+    "total_tokens": 260
+   },
+   "seconds": 1.0,
+   "model": "demo-beta",
+   "answer_found": true
+  },
+  "verdicts": {
+   "F-7517ce65bd31": {
+    "fact_id": "F-7517ce65bd31",
+    "verdict": "background",
+    "why": "фон"
+   },
+   "F-45ff44a90e98": {
+    "fact_id": "F-45ff44a90e98",
+    "verdict": "background",
+    "why": "фон"
+   },
+   "F-cf4ad64c2fe1": {
+    "fact_id": "F-cf4ad64c2fe1",
+    "verdict": "background",
+    "why": "фон"
+   }
+  },
+  "missing": []
+ }
+}

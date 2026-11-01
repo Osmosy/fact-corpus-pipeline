@@ -149,6 +149,18 @@ def collect() -> dict:
                         passed.add(row.get("req_id"))
         proven = len({row["req_id"] for row in live} & passed)
 
+    stability: dict[str, float] = {}
+    for path in sorted(corpus.ROOT.glob("docs/facts/STABILITY-*.json")):
+        body = json.loads(path.read_text("utf-8"))
+        if body.get("error"):
+            continue
+        prefix = f"stability.{body['deck']}.{body['channel'].split()[0]}"
+        stability[f"{prefix}.runs"] = body.get("runs")
+        stability[f"{prefix}.jaccard"] = body.get("jaccard_mean")
+        stability[f"{prefix}.all"] = body.get("selected_all")
+        stability[f"{prefix}.never"] = body.get("selected_none")
+        stability[f"{prefix}.spearman"] = (body.get("trend") or {}).get("spearman")
+
     single_path = corpus.ROOT / "docs/facts/SINGLE-REVIEW.json"
     single = {}
     if single_path.is_file():
@@ -167,6 +179,10 @@ def collect() -> dict:
         "blind.split": verdicts.get("split", 0),
         "blind.background": verdicts.get("background", 0),
         "blind.no_verdict": verdicts.get("no_verdict", 0),
+        "blind.share_thematic": round(len(blind) / len(thematic) * 100) if thematic else 0,
+        "blind.share_corpus": round(len(blind) / len(facts) * 100, 1) if facts else 0.0,
+        "comparison.consensus": sum(item["consensus"] for item in comparisons.values()),
+        "comparison.ignored": sum(item["ignored"] for item in comparisons.values()),
         "comparison.clusters": clusters_all,
         "comparison.clusters_shared": clusters_shared,
         "single.total": single.get("total", single_total),
@@ -174,10 +190,12 @@ def collect() -> dict:
         "requirements.live": requirements_live,
         "requirements.proven": proven,
         "requirements.unproven": max(0, requirements_live - proven),
+        **stability,
         "decks": comparisons,
         **per_deck,
         "costs.pool_units": costs(),
-        "gates": {name: gate(name) for name in ("coverage", "drift", "replay")},
+        "gates": {name: body for name in ("coverage", "drift", "replay")
+                  for body in [gate(name)] if body and body.get("exit") in (0, 1)},
     }
 
 

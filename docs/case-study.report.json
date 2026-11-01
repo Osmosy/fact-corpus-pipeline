@@ -1,13 +1,17 @@
 {
  "facts.total": 653,
  "facts.thematic": 119,
- "taken.total": 245,
- "taken.thematic": 78,
- "blind.total": 41,
+ "taken.total": 258,
+ "taken.thematic": 81,
+ "blind.total": 38,
  "blind.material": 9,
  "blind.split": 6,
- "blind.background": 26,
+ "blind.background": 23,
  "blind.no_verdict": 0,
+ "blind.share_thematic": 32,
+ "blind.share_corpus": 5.8,
+ "comparison.consensus": 140,
+ "comparison.ignored": 408,
  "comparison.clusters": 68,
  "comparison.clusters_shared": 22,
  "single.total": 105,
@@ -15,57 +19,16 @@
  "requirements.live": 38,
  "requirements.proven": 25,
  "requirements.unproven": 13,
- "decks": {
-  "ekopsi-debaty-pro-pokoleniya": {
-   "runs": 2,
-   "consensus": 5,
-   "single": 6,
-   "ignored": 23,
-   "skipped": 0
-  },
-  "inkofood-2026": {
-   "runs": 2,
-   "consensus": 65,
-   "single": 25,
-   "ignored": 119,
-   "skipped": 0
-  },
-  "nielsen-fmcg-do-avgusta-2026": {
-   "runs": 2,
-   "consensus": 6,
-   "single": 12,
-   "ignored": 36,
-   "skipped": 0
-  },
-  "nielsen-itogi-2025-vektory-2026": {
-   "runs": 2,
-   "consensus": 17,
-   "single": 24,
-   "ignored": 80,
-   "skipped": 0
-  },
-  "romir-trendy-2026": {
-   "runs": 2,
-   "consensus": 21,
-   "single": 10,
-   "ignored": 80,
-   "skipped": 0
-  },
-  "sbermarket-globalnye-trendy-2026": {
-   "runs": 2,
-   "consensus": 12,
-   "single": 9,
-   "ignored": 26,
-   "skipped": 0
-  },
-  "sbermarket-serebryanyy-vozrast-2026": {
-   "runs": 2,
-   "consensus": 14,
-   "single": 19,
-   "ignored": 44,
-   "skipped": 0
-  }
- },
+ "stability.romir-trendy-2026.ollama.runs": 4,
+ "stability.romir-trendy-2026.ollama.jaccard": 0.615,
+ "stability.romir-trendy-2026.ollama.all": 14,
+ "stability.romir-trendy-2026.ollama.never": 77,
+ "stability.romir-trendy-2026.ollama.spearman": 0.002,
+ "stability.romir-trendy-2026.zcode.runs": 3,
+ "stability.romir-trendy-2026.zcode.jaccard": 0.617,
+ "stability.romir-trendy-2026.zcode.all": 22,
+ "stability.romir-trendy-2026.zcode.never": 65,
+ "stability.romir-trendy-2026.zcode.spearman": -0.202,
  "deck.ekopsi-debaty-pro-pokoleniya.facts": 34,
  "deck.ekopsi-debaty-pro-pokoleniya.thematic": 4,
  "deck.ekopsi-debaty-pro-pokoleniya.taken": 11,
@@ -80,36 +43,11 @@
  "deck.nielsen-itogi-2025-vektory-2026.taken": 41,
  "deck.romir-trendy-2026.facts": 111,
  "deck.romir-trendy-2026.thematic": 21,
- "deck.romir-trendy-2026.taken": 31,
+ "deck.romir-trendy-2026.taken": 44,
  "deck.sbermarket-globalnye-trendy-2026.facts": 47,
  "deck.sbermarket-globalnye-trendy-2026.thematic": 11,
  "deck.sbermarket-globalnye-trendy-2026.taken": 21,
  "deck.sbermarket-serebryanyy-vozrast-2026.facts": 77,
  "deck.sbermarket-serebryanyy-vozrast-2026.thematic": 4,
- "deck.sbermarket-serebryanyy-vozrast-2026.taken": 33,
- "costs.pool_units": {
-  "ollama": 167870,
-  "zcode": 512533
- },
- "gates": {
-  "coverage": {
-   "exit": 0,
-   "blocking": 0,
-   "tail": "coverage: ЧИСТО — блокирующих 0, предупреждений 0"
-  },
-  "drift": {
-   "exit": 1,
-   "blocking": 13,
-   "tail": "drift: БЛОК — блокирующих 13, предупреждений 0"
-  },
-  "replay": {
-   "exit": 0,
-   "blocking": 0,
-   "tail": "ok  REQ-0003 / INV-0153 / REQ-0003: в записи pass, сейчас pass"
-  }
- },
- "blind.share_thematic": 34,
- "blind.share_corpus": 6.3,
- "comparison.consensus": 140,
- "comparison.ignored": 408
+ "deck.sbermarket-serebryanyy-vozrast-2026.taken": 33
 }

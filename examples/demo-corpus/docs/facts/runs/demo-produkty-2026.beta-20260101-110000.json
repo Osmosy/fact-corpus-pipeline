@@ -1,0 +1,86 @@
+{
+ "deck": "demo-produkty-2026",
+ "backend": "beta",
+ "facts_total": 14,
+ "facts_thematic": 11,
+ "seconds": 1.0,
+ "usage": {
+  "input_tokens": 100,
+  "output_tokens": 20,
+  "pool_units": 120
+ },
+ "order": {},
+ "problems": [],
+ "answer": {
+  "selected": [
+   {
+    "fact_id": "F-4816083282ba",
+    "why": "важно для вопроса"
+   },
+   {
+    "fact_id": "F-5f3cc7b103f9",
+    "why": "важно для вопроса"
+   },
+   {
+    "fact_id": "F-a6895a9927ad",
+    "why": "важно для вопроса"
+   },
+   {
+    "fact_id": "F-944f4d06eb57",
+    "why": "важно для вопроса"
+   },
+   {
+    "fact_id": "F-bfc7dfc423a1",
+    "why": "важно для вопроса"
+   },
+   {
+    "fact_id": "F-cf373585a2b7",
+    "why": "важно для вопроса"
+   }
+  ],
+  "conclusions": [
+   {
+    "text": "Вывод по Высокое содержание мяса и другим фактам",
+    "fact_ids": [
+     "F-4816083282ba",
+     "F-5f3cc7b103f9",
+     "F-a6895a9927ad"
+    ]
+   }
+  ],
+  "not_relevant": [
+   {
+    "fact_id": "F-3f5a3e4d0533",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-589941831bb0",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-8bc55cfb7a4a",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-408a36011bb6",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-38b67076a774",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-7517ce65bd31",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-45ff44a90e98",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-cf4ad64c2fe1",
+    "why": "фон"
+   }
+  ]
+ }
+}

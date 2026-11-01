@@ -1,0 +1,266 @@
+{
+ "decks": {
+  "demo-produkty-2026": {
+   "deck_sha256": "29ee54e1eecb9e8d5cd24e7e43fbc74d44748ba5953704fb3669158446431103",
+   "pages": {
+    "1": {
+     "facts": [
+      {
+       "label": "Нравится вкус продукта",
+       "value": "54,8 %",
+       "verified": true
+      },
+      {
+       "label": "Не нравится вкус продукта",
+       "value": "10 %",
+       "verified": true
+      },
+      {
+       "label": "Слишком солёный",
+       "value": "7 %",
+       "verified": true
+      }
+     ]
+    },
+    "2": {
+     "facts": [
+      {
+       "label": "Высокое содержание мяса",
+       "value": "39 %",
+       "verified": true,
+       "panel": "РФ"
+      },
+      {
+       "label": "Простой состав",
+       "value": "40 %",
+       "verified": true,
+       "panel": "РФ"
+      },
+      {
+       "label": "Без усилителей вкуса",
+       "value": "22 %",
+       "verified": true,
+       "panel": "РФ"
+      },
+      {
+       "label": "Высокое содержание мяса",
+       "value": "39 %",
+       "verified": true,
+       "panel": "РБ"
+      },
+      {
+       "label": "Простой состав",
+       "value": "40 %",
+       "verified": true,
+       "panel": "РБ"
+      },
+      {
+       "label": "Без усилителей вкуса",
+       "value": "22 %",
+       "verified": true,
+       "panel": "РБ"
+      }
+     ]
+    },
+    "3": {
+     "facts": [
+      {
+       "label": "Готовы платить больше",
+       "value": "28 %",
+       "verified": true
+      },
+      {
+       "label": "Цена важнее вкуса",
+       "value": "31 %",
+       "verified": true
+      }
+     ]
+    },
+    "4": {
+     "facts": [
+      {
+       "label": "Удобная упаковка",
+       "value": "46 %",
+       "verified": true,
+       "panel": "РФ"
+      },
+      {
+       "label": "Повреждённая упаковка",
+       "value": "9 %",
+       "verified": true,
+       "panel": "РФ"
+      },
+      {
+       "label": "Удобная упаковка",
+       "value": "46 %",
+       "verified": true,
+       "panel": "РБ"
+      },
+      {
+       "label": "Повреждённая упаковка",
+       "value": "9 %",
+       "verified": true,
+       "panel": "РБ"
+      }
+     ]
+    },
+    "5": {
+     "facts": [
+      {
+       "label": "Берут на перекус",
+       "value": "53,5 %",
+       "verified": true
+      },
+      {
+       "label": "Берут в дорогу",
+       "value": "41 %",
+       "verified": true
+      }
+     ]
+    },
+    "6": {
+     "facts": [
+      {
+       "label": "Нравится вкус продукта",
+       "value": "54,8 %",
+       "verified": true
+      }
+     ]
+    },
+    "7": {
+     "facts": [
+      {
+       "label": "Высокое содержание мяса…",
+       "value": "39 %",
+       "verified": true
+      }
+     ]
+    }
+   }
+  },
+  "demo-upakovka-2026": {
+   "deck_sha256": "d7258d4b66a06189fa87c2b17693fa4ce2e243795272ab488df6a48e45ae13cb",
+   "pages": {
+    "1": {
+     "facts": [
+      {
+       "label": "Нарезка",
+       "value": "45,2 %",
+       "verified": true
+      },
+      {
+       "label": "Наборы-ассорти",
+       "value": "15 %",
+       "verified": true
+      },
+      {
+       "label": "Цельный кусок",
+       "value": "23 %",
+       "verified": true
+      }
+     ]
+    },
+    "2": {
+     "facts": [
+      {
+       "label": "Прозрачное окно",
+       "value": "34 %",
+       "verified": true,
+       "panel": "РФ"
+      },
+      {
+       "label": "Вакуум",
+       "value": "51 %",
+       "verified": true,
+       "panel": "РФ"
+      },
+      {
+       "label": "Картон",
+       "value": "12 %",
+       "verified": true,
+       "panel": "РФ"
+      },
+      {
+       "label": "Прозрачное окно",
+       "value": "34 %",
+       "verified": true,
+       "panel": "РБ"
+      },
+      {
+       "label": "Вакуум",
+       "value": "51 %",
+       "verified": true,
+       "panel": "РБ"
+      },
+      {
+       "label": "Картон",
+       "value": "12 %",
+       "verified": true,
+       "panel": "РБ"
+      }
+     ]
+    },
+    "3": {
+     "facts": [
+      {
+       "label": "Важна перерабатываемость",
+       "value": "26 %",
+       "verified": true
+      },
+      {
+       "label": "Готовы доплатить за эко",
+       "value": "14 %",
+       "verified": true
+      }
+     ]
+    },
+    "4": {
+     "facts": [
+      {
+       "label": "Читают состав",
+       "value": "61 %",
+       "verified": true,
+       "panel": "РФ"
+      },
+      {
+       "label": "Смотрят срок годности",
+       "value": "59 %",
+       "verified": true,
+       "panel": "РФ"
+      },
+      {
+       "label": "Читают состав",
+       "value": "61 %",
+       "verified": true,
+       "panel": "РБ"
+      },
+      {
+       "label": "Смотрят срок годности",
+       "value": "59 %",
+       "verified": true,
+       "panel": "РБ"
+      }
+     ]
+    },
+    "5": {
+     "facts": [
+      {
+       "label": "Нарезка",
+       "value": "45,2 %",
+       "verified": true
+      }
+     ]
+    },
+    "6": {
+     "facts": [
+      {
+       "label": "Высокое содержание мяса…",
+       "value": "39 %",
+       "verified": true
+      }
+     ]
+    }
+   }
+  }
+ }
+}

@@ -108,6 +108,7 @@ def stability(deck: str, channel: str | None = None) -> dict:
     common = sum(1 for fact_id in facts if selected_counts.get(fact_id, 0) == len(runs))
     part = sum(1 for fact_id in facts if 0 < selected_counts.get(fact_id, 0) < len(runs))
     never = sum(1 for fact_id in facts if not selected_counts.get(fact_id, 0))
+    position = decile_effect(deck, runs)
     return {
         "deck": deck, "channel": channel or "все принятые",
         "runs": len(runs), "stamps": [run["stamp"] for run in runs],
@@ -116,14 +117,16 @@ def stability(deck: str, channel: str | None = None) -> dict:
         "jaccard_min": round(min(pairs), 3),
         "selected_all": common, "selected_part": part, "selected_none": never,
         "selected_share_all": round(common / len(facts), 3) if facts else 0.0,
-        "position": decile_effect(deck, runs),
+        "position": position, "trend": trend(position),
     }
 
 
 def write(deck: str, body: dict) -> Path:
-    json_path = corpus.ROOT / f"docs/facts/STABILITY-{deck}.json"
+    """Имя файла включает канал: иначе второй прогон затирает отчёт первого."""
+    suffix = str(body.get("channel") or "all").replace(" ", "-")
+    json_path = corpus.ROOT / f"docs/facts/STABILITY-{deck}-{suffix}.json"
     corpus.write_json(json_path, body)
-    md = corpus.ROOT / f"docs/facts/STABILITY-{deck}.md"
+    md = corpus.ROOT / f"docs/facts/STABILITY-{deck}-{suffix}.md"
     lines = [f"# Шум прогонов: {deck}", "",
              f"канал: {body['channel']}, повторов {body['runs']}, "
              f"порядок перемешан: {'да' if body.get('shuffled') else 'нет'}", ""]
@@ -147,6 +150,38 @@ def write(deck: str, body: dict) -> Path:
     return md
 
 
+def trend(position: dict) -> dict:
+    """Есть ли монотонный тренд «чем дальше факт, тем чаще не выбран».
+
+    Разброс по децилям отвечает на другой вопрос: где потери вообще кучкуются. Тезис про
+    внимание требует роста, поэтому отдельно считается ранговая корреляция дециль → доля
+    невыбранных. p-value перестановочного теста при этом ничего не говорит о тренде: он
+    сдвигает факты между децилями и ломает кластеры похожих фактов, а не порядок.
+    """
+    buckets = position.get("deciles") or []
+    if len(buckets) < 3:
+        return {}
+    shares = [bucket["missed_share"] for bucket in buckets]
+    order = list(range(len(shares)))
+    mean_r = (len(shares) - 1) / 2
+    cov = sum((order[i] - mean_r) * (shares[i] - sum(shares) / len(shares))
+              for i in range(len(shares)))
+    var = sum((order[i] - mean_r) ** 2 for i in range(len(shares)))
+    spread = sum((share - sum(shares) / len(shares)) ** 2 for share in shares) ** 0.5
+    rho = cov / (var ** 0.5 * spread) if spread else 0.0
+    first, last = shares[0], shares[-1]
+    monotone = (all(shares[i] <= shares[i + 1] for i in range(len(shares) - 1))
+                or all(shares[i] >= shares[i + 1] for i in range(len(shares) - 1)))
+    if rho >= 0.5 and monotone:
+        verdict = "тренд вверх: дальние факты теряются чаще"
+    elif rho <= -0.5 and monotone:
+        verdict = "тренд вниз: дальние факты теряются реже"
+    else:
+        verdict = "тренда нет: потери не привязаны к позиции"
+    return {"spearman": round(rho, 3), "first": first, "last": last,
+            "monotone": monotone, "verdict": verdict}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("deck")
@@ -162,6 +197,8 @@ def main() -> int:
     if body.get("position"):
         print(f"  разброс по децилям {body['position']['spread']}, "
               f"p = {body['position']['p_value']}")
+    if body.get("trend"):
+        print(f"  {body['trend']['verdict']} (Спирмен {body['trend']['spearman']})")
     print(f"→ {corpus.rel(out)}")
     return 0
 

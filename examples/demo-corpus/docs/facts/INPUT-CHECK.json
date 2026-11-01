@@ -1,0 +1,221 @@
+{
+  "generated_at": "2026-11-01T06:15:34",
+  "totals": {
+    "pages": 13,
+    "facts": 36,
+    "errors": 0,
+    "warnings": 24
+  },
+  "decks": {
+    "demo-produkty-2026": {
+      "deck": "demo-produkty-2026",
+      "pages": 7,
+      "facts": 19,
+      "errors": 0,
+      "warnings": 12,
+      "findings": [
+        {
+          "page": 2,
+          "label": "Высокое содержание мяса",
+          "value": "39 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 2,
+          "label": "Простой состав",
+          "value": "40 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 2,
+          "label": "Без усилителей вкуса",
+          "value": "22 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 2,
+          "label": "Высокое содержание мяса",
+          "value": "39 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 2,
+          "label": "Простой состав",
+          "value": "40 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 2,
+          "label": "Без усилителей вкуса",
+          "value": "22 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 4,
+          "label": "Удобная упаковка",
+          "value": "46 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 4,
+          "label": "Повреждённая упаковка",
+          "value": "9 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 4,
+          "label": "Удобная упаковка",
+          "value": "46 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 4,
+          "label": "Повреждённая упаковка",
+          "value": "9 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 6,
+          "label": "Нравится вкус продукта",
+          "value": "54,8 %",
+          "code": "repeated_slide",
+          "level": "warn",
+          "detail": "страница повторяет слайд 1"
+        },
+        {
+          "page": 7,
+          "label": "Высокое содержание мяса…",
+          "value": "39 %",
+          "code": "truncated_cell",
+          "level": "warn",
+          "detail": "в подписи или значении многоточие — ячейка обрезана"
+        }
+      ]
+    },
+    "demo-upakovka-2026": {
+      "deck": "demo-upakovka-2026",
+      "pages": 6,
+      "facts": 17,
+      "errors": 0,
+      "warnings": 12,
+      "findings": [
+        {
+          "page": 2,
+          "label": "Прозрачное окно",
+          "value": "34 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 2,
+          "label": "Вакуум",
+          "value": "51 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 2,
+          "label": "Картон",
+          "value": "12 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 2,
+          "label": "Прозрачное окно",
+          "value": "34 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 2,
+          "label": "Вакуум",
+          "value": "51 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 2,
+          "label": "Картон",
+          "value": "12 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 4,
+          "label": "Читают состав",
+          "value": "61 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 4,
+          "label": "Смотрят срок годности",
+          "value": "59 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 4,
+          "label": "Читают состав",
+          "value": "61 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 4,
+          "label": "Смотрят срок годности",
+          "value": "59 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 5,
+          "label": "Нарезка",
+          "value": "45,2 %",
+          "code": "repeated_slide",
+          "level": "warn",
+          "detail": "страница повторяет слайд 1"
+        },
+        {
+          "page": 6,
+          "label": "Высокое содержание мяса…",
+          "value": "39 %",
+          "code": "truncated_cell",
+          "level": "warn",
+          "detail": "в подписи или значении многоточие — ячейка обрезана"
+        }
+      ]
+    }
+  }
+}

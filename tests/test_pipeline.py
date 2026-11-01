@@ -216,6 +216,24 @@ class TestVerdicts(unittest.TestCase):
         self.assertTrue(problems)
 
 
+class TestStabilityTrend(unittest.TestCase):
+    def test_flat_deciles_have_no_trend(self) -> None:
+        position = {"deciles": [{"missed_share": 0.4} for _ in range(5)]}
+        self.assertEqual(stability.trend(position)["verdict"], "тренда нет: потери не привязаны к позиции")
+
+    def test_growing_deciles_make_upward_trend(self) -> None:
+        position = {"deciles": [{"missed_share": share} for share in (0.0, 0.2, 0.4, 0.6, 0.8)]}
+        body = stability.trend(position)
+        self.assertTrue(body["monotone"])
+        self.assertEqual(body["spearman"], 1.0)
+        self.assertIn("вверх", body["verdict"])
+
+    def test_scattered_deciles_are_not_trend(self) -> None:
+        position = {"deciles": [{"missed_share": share}
+                                for share in (0.27, 1.0, 0.27, 0.91, 0.0)]}
+        self.assertFalse(stability.trend(position)["monotone"])
+
+
 class TestReportAndNumbers(unittest.TestCase):
     def test_report_counts_agree_with_canon(self) -> None:
         import subprocess

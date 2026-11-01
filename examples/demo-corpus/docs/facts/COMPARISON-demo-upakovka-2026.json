@@ -1,0 +1,69 @@
+{
+  "deck": "demo-upakovka-2026",
+  "runs": [
+    "alpha",
+    "beta"
+  ],
+  "runs_skipped": [],
+  "counts": {
+    "F-9b9d2172457c": 1,
+    "F-c72b3a2b0f66": 0,
+    "F-f1267d7de665": 0,
+    "F-1318ee68375e": 0,
+    "F-65d5d648cd83": 0,
+    "F-8461b9702035": 0,
+    "F-17b49fd3ec24": 0,
+    "F-82fd7de95369": 0,
+    "F-dac350544b47": 1,
+    "F-dbd5d65adf14": 2,
+    "F-21fc1b6327be": 2,
+    "F-969c66f85a21": 2
+  },
+  "consensus": [
+    "F-dbd5d65adf14",
+    "F-21fc1b6327be",
+    "F-969c66f85a21"
+  ],
+  "majority": [
+    "F-dbd5d65adf14",
+    "F-21fc1b6327be",
+    "F-969c66f85a21"
+  ],
+  "single": [
+    "F-9b9d2172457c",
+    "F-dac350544b47"
+  ],
+  "ignored": [
+    "F-c72b3a2b0f66",
+    "F-f1267d7de665",
+    "F-1318ee68375e",
+    "F-65d5d648cd83",
+    "F-8461b9702035",
+    "F-17b49fd3ec24",
+    "F-82fd7de95369"
+  ],
+  "clusters": [
+    {
+      "claims": [
+        {
+          "text": "Вывод по Нарезка и другим фактам",
+          "facts": [
+            "F-9b9d2172457c",
+            "F-dac350544b47",
+            "F-dbd5d65adf14"
+          ],
+          "by": "alpha"
+        },
+        {
+          "text": "Вывод по Читают состав и другим фактам",
+          "facts": [
+            "F-21fc1b6327be",
+            "F-969c66f85a21",
+            "F-dbd5d65adf14"
+          ],
+          "by": "beta"
+        }
+      ]
+    }
+  ]
+}

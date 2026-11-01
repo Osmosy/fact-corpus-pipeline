@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-11-01T06:15:38",
+  "count": 3,
+  "facts_total": 26,
+  "thematic_total": 16,
+  "ids": {
+    "F-7517ce65bd31": {
+      "deck": "demo-produkty-2026",
+      "page": 5,
+      "label": "Берут на перекус",
+      "value": "53,5 %"
+    },
+    "F-45ff44a90e98": {
+      "deck": "demo-produkty-2026",
+      "page": 6,
+      "label": "Нравится вкус продукта",
+      "value": "54,8 %"
+    },
+    "F-cf4ad64c2fe1": {
+      "deck": "demo-produkty-2026",
+      "page": 7,
+      "label": "Высокое содержание мяса…",
+      "value": "39 %"
+    }
+  }
+}

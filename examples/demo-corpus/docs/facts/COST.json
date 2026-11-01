@@ -1,0 +1,76 @@
+{
+  "decks": {
+    "demo-produkty-2026": {
+      "alpha": {
+        "runs": 1,
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "pool_units": 120,
+        "seconds": 1.0,
+        "runs_no_usage": 0
+      },
+      "beta": {
+        "runs": 1,
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "pool_units": 120,
+        "seconds": 1.0,
+        "runs_no_usage": 0
+      }
+    },
+    "demo-upakovka-2026": {
+      "alpha": {
+        "runs": 1,
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "pool_units": 120,
+        "seconds": 1.0,
+        "runs_no_usage": 0
+      },
+      "beta": {
+        "runs": 1,
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "pool_units": 120,
+        "seconds": 1.0,
+        "runs_no_usage": 0
+      }
+    },
+    "(разбор слепых зон)": {
+      "alpha": {
+        "runs": 1,
+        "input_tokens": 200,
+        "output_tokens": 60,
+        "pool_units": 260,
+        "seconds": 1.0,
+        "runs_no_usage": 0
+      },
+      "beta": {
+        "runs": 1,
+        "input_tokens": 200,
+        "output_tokens": 60,
+        "pool_units": 260,
+        "seconds": 1.0,
+        "runs_no_usage": 0
+      }
+    }
+  },
+  "totals": {
+    "alpha": {
+      "runs": 3,
+      "input_tokens": 400,
+      "output_tokens": 100,
+      "pool_units": 500,
+      "seconds": 3.0,
+      "runs_no_usage": 0
+    },
+    "beta": {
+      "runs": 3,
+      "input_tokens": 400,
+      "output_tokens": 100,
+      "pool_units": 500,
+      "seconds": 3.0,
+      "runs_no_usage": 0
+    }
+  }
+}

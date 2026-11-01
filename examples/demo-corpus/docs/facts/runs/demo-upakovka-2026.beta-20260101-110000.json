@@ -1,0 +1,78 @@
+{
+ "deck": "demo-upakovka-2026",
+ "backend": "beta",
+ "facts_total": 12,
+ "facts_thematic": 5,
+ "seconds": 1.0,
+ "usage": {
+  "input_tokens": 100,
+  "output_tokens": 20,
+  "pool_units": 120
+ },
+ "order": {},
+ "problems": [],
+ "answer": {
+  "selected": [
+   {
+    "fact_id": "F-dbd5d65adf14",
+    "why": "важно для вопроса"
+   },
+   {
+    "fact_id": "F-21fc1b6327be",
+    "why": "важно для вопроса"
+   },
+   {
+    "fact_id": "F-969c66f85a21",
+    "why": "важно для вопроса"
+   }
+  ],
+  "conclusions": [
+   {
+    "text": "Вывод по Читают состав и другим фактам",
+    "fact_ids": [
+     "F-dbd5d65adf14",
+     "F-21fc1b6327be",
+     "F-969c66f85a21"
+    ]
+   }
+  ],
+  "not_relevant": [
+   {
+    "fact_id": "F-9b9d2172457c",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-c72b3a2b0f66",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-f1267d7de665",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-1318ee68375e",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-65d5d648cd83",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-8461b9702035",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-17b49fd3ec24",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-82fd7de95369",
+    "why": "фон"
+   },
+   {
+    "fact_id": "F-dac350544b47",
+    "why": "фон"
+   }
+  ]
+ }
+}
