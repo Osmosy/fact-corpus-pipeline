@@ -72,7 +72,8 @@ cd /path/to/project                        # здесь decks/, docs/registry/pa
 mkdir -p docs/facts
 cp $SKILL/examples/config.example.json docs/facts/config.json   # вопрос, роль, основы темы
 
-CORPUS_ROOT=$PWD python3 $SKILL/build_facts.py
+CORPUS_ROOT=$PWD python3 $SKILL/validate_input.py   # входной контроль: INPUT-CHECK.md
+CORPUS_ROOT=$PWD python3 $SKILL/build_facts.py      # канон фактов
 CORPUS_ROOT=$PWD python3 $SKILL/run_analysis.py --backend ollama --deck <колода>
 CORPUS_ROOT=$PWD python3 $SKILL/compare_analyses.py <колода>
 CORPUS_ROOT=$PWD python3 $SKILL/summary_all.py

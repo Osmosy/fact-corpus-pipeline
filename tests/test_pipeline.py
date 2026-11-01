@@ -191,6 +191,77 @@ class TestExtractObject(unittest.TestCase):
         self.assertEqual(inner["selected"][0]["fact_id"], "F-1")
 
 
+class InputCheckCase(unittest.TestCase):
+    """Входной контроль — на колоде с дефектами: у каждого кода своя находка."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="fcp-input-"))
+        shutil.copytree(REPO / "tests/fixtures/input-check", self.tmp, dirs_exist_ok=True)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def run_script(self, name: str, *args: str) -> subprocess.CompletedProcess:
+        env = {**os.environ, "CORPUS_ROOT": str(self.tmp)}
+        return subprocess.run([sys.executable, str(SCRIPTS / name), *args],
+                              capture_output=True, text=True, env=env, timeout=120)
+
+    def report(self) -> dict:
+        return json.loads((self.tmp / "docs/facts/INPUT-CHECK.json").read_text("utf-8"))
+
+
+class TestValidateInput(InputCheckCase):
+    def test_every_code_has_its_finding(self) -> None:
+        done = self.run_script("validate_input.py")
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        codes = {item["code"] for item in self.report()["decks"]["broken-2026"]["findings"]}
+        self.assertEqual(codes, {"page_without_anchor", "ragged_table", "duplicate_page",
+                                 "repeated_slide", "truncated_cell", "panel_ambiguous",
+                                 "value_not_on_page", "label_not_substring", "page_missing",
+                                 "value_in_prose"})
+
+    def test_errors_and_warnings_are_separated(self) -> None:
+        self.run_script("validate_input.py")
+        totals = self.report()["totals"]
+        self.assertEqual(totals["errors"], 3)       # два провала подписи/значения и страница-призрак
+        self.assertEqual(totals["warnings"], 7)
+
+    def test_value_in_prose_is_warning_not_error(self) -> None:
+        self.run_script("validate_input.py")
+        findings = self.report()["decks"]["broken-2026"]["findings"]
+        prose = [item for item in findings if item["code"] == "value_in_prose"]
+        self.assertEqual(len(prose), 1, findings)
+        self.assertEqual(prose[0]["level"], "warn")
+        self.assertEqual(prose[0]["page"], 7)
+
+    def test_clean_deck_returns_zero(self) -> None:
+        deck = self.tmp / "decks/clean-2026/clean-2026.md"
+        deck.parent.mkdir(parents=True)
+        deck.write_text("## Слайд 1 — Чисто\n\n| Показатель | Доля |\n|---|---|\n"
+                        "| Нравится вкус | 54,8 % |\n", encoding="utf-8")
+        facts = self.tmp / "docs/registry/page_facts.json"
+        data = json.loads(facts.read_text("utf-8"))
+        data["decks"] = {"clean-2026": {"deck_sha256": "clean", "pages": {"1": {"facts": [
+            {"label": "Нравится вкус", "value": "54,8 %", "verified": True}]}}}}
+        facts.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        done = self.run_script("validate_input.py")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(self.report()["totals"]["warnings"], 0)
+
+    def test_strict_drops_facts_with_input_errors(self) -> None:
+        self.run_script("validate_input.py")
+        done = self.run_script("build_facts.py", "--strict")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        rejected = [json.loads(line) for line in
+                    (self.tmp / "docs/facts/facts-rejected.jsonl").read_text("utf-8").splitlines()]
+        reasons = {row["reason"] for row in rejected}
+        self.assertTrue(any("value_not_on_page" in reason for reason in reasons), reasons)
+        self.assertTrue(any("label_not_substring" in reason for reason in reasons), reasons)
+        facts = [json.loads(line) for line in
+                 (self.tmp / "docs/facts/facts.jsonl").read_text("utf-8").splitlines()]
+        self.assertNotIn("Простой состав", {row["label"] for row in facts})
+
+
 class TestBlindSnapshot(CorpusCase):
     def setUp(self) -> None:
         super().setUp()

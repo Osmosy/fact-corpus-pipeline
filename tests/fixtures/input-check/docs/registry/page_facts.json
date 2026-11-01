@@ -1,0 +1,77 @@
+{
+  "decks": {
+    "broken-2026": {
+      "deck_sha256": "demo-broken",
+      "pages": {
+        "1": {
+          "facts": [
+            {
+              "label": "Нравится вкус продукта",
+              "value": "54,8 %",
+              "verified": true
+            }
+          ]
+        },
+        "2": {
+          "facts": [
+            {
+              "label": "Нравится вкус продукта",
+              "value": "54,8 %",
+              "verified": true
+            }
+          ]
+        },
+        "3": {
+          "facts": [
+            {
+              "label": "Высокое содержание мяса…",
+              "value": "39 %",
+              "verified": true
+            }
+          ]
+        },
+        "4": {
+          "facts": [
+            {
+              "label": "Одинаковая строка",
+              "value": "42 %",
+              "verified": true
+            }
+          ]
+        },
+        "5": {
+          "facts": [
+            {
+              "label": "Простой состав",
+              "value": "77 %",
+              "verified": true
+            },
+            {
+              "label": "Такой подписи нет",
+              "value": "40 %",
+              "verified": true
+            }
+          ]
+        },
+        "9": {
+          "facts": [
+            {
+              "label": "Страницы нет",
+              "value": "1 %",
+              "verified": true
+            }
+          ]
+        },
+        "7": {
+          "facts": [
+            {
+              "label": "45% потребителей выбирают продукт по составу",
+              "value": "45%",
+              "verified": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}

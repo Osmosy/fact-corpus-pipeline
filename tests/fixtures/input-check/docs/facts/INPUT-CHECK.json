@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-11-01T05:59:50",
+  "totals": {
+    "pages": 6,
+    "facts": 7,
+    "errors": 3,
+    "warnings": 6
+  },
+  "decks": {
+    "broken-2026": {
+      "deck": "broken-2026",
+      "pages": 6,
+      "facts": 7,
+      "errors": 3,
+      "warnings": 6,
+      "findings": [
+        {
+          "page": null,
+          "code": "page_without_anchor",
+          "level": "warn",
+          "detail": "строки таблицы до первого якоря «## Слайд N»"
+        },
+        {
+          "page": 6,
+          "code": "ragged_table",
+          "level": "warn",
+          "detail": "строки таблицы разной длины: [2, 3]"
+        },
+        {
+          "page": 1,
+          "code": "duplicate_page",
+          "level": "warn",
+          "detail": "слайд 1 встречается больше одного раза"
+        },
+        {
+          "page": 2,
+          "label": "Нравится вкус продукта",
+          "value": "54,8 %",
+          "code": "repeated_slide",
+          "level": "warn",
+          "detail": "страница повторяет слайд 1"
+        },
+        {
+          "page": 3,
+          "label": "Высокое содержание мяса…",
+          "value": "39 %",
+          "code": "truncated_cell",
+          "level": "warn",
+          "detail": "в подписи или значении многоточие — ячейка обрезана"
+        },
+        {
+          "page": 4,
+          "label": "Одинаковая строка",
+          "value": "42 %",
+          "code": "panel_ambiguous",
+          "level": "warn",
+          "detail": "неоднозначно: панели РБ, РФ"
+        },
+        {
+          "page": 5,
+          "label": "Простой состав",
+          "value": "77 %",
+          "code": "value_not_on_page",
+          "level": "error",
+          "detail": "значения нет целой ячейкой на этой странице"
+        },
+        {
+          "page": 5,
+          "label": "Такой подписи нет",
+          "value": "40 %",
+          "code": "label_not_substring",
+          "level": "error",
+          "detail": "подписи нет дословно ни в одной строке страницы"
+        },
+        {
+          "page": 9,
+          "code": "page_missing",
+          "level": "error",
+          "label": "Страницы нет",
+          "value": "1 %",
+          "detail": "страницы нет в колоде"
+        }
+      ]
+    }
+  }
+}

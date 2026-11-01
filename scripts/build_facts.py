@@ -10,9 +10,12 @@
 Качество входа проверяется здесь же:
   - факт без `verified: true` в канон не идёт, а попадает в журнал отклонённых с причиной;
   - факт без подписи или значения — тоже в журнал;
-  - дубли (deck, page, label, value) считаются и печатаются, а не выбрасываются молча.
+  - дубли (deck, page, label, value) считаются и печатаются, а не выбрасываются молча;
+  - с флагом `--strict` факты с ошибками входного контроля (значение не на своей странице,
+    подпись не найдена дословно) не идут в канон: причиной в журнале становится код
+    находки из `docs/facts/INPUT-CHECK.json`.
 
-Запуск: CORPUS_ROOT=/path/to/project python3 $SKILL/build_facts.py
+Запуск: CORPUS_ROOT=/path/to/project python3 $SKILL/build_facts.py [--strict]
 """
 from __future__ import annotations
 
@@ -30,8 +33,30 @@ def fact_id(deck: str, page: int, label: str, value: str) -> str:
     return "F-" + digest[:12]
 
 
+INPUT_CHECK = corpus.ROOT / "docs/facts/INPUT-CHECK.json"
+
+
+def strict_errors() -> dict[tuple, str]:
+    """Факты с ошибками входа: (колода, страница, подпись, значение) → код находки."""
+    if not INPUT_CHECK.is_file():
+        raise SystemExit(
+            f"--strict требует {corpus.rel(INPUT_CHECK)} — сначала запусти validate_input.py")
+    report = json.loads(INPUT_CHECK.read_text("utf-8"))
+    blocked: dict[tuple, str] = {}
+    for body in report.get("decks", {}).values():
+        for finding in body.get("findings", []):
+            if finding.get("level") != "error":
+                continue
+            key = (body["deck"], finding.get("page"), (finding.get("label") or "").strip(),
+                   (finding.get("value") or "").strip())
+            blocked[key] = finding["code"]
+    return blocked
+
+
 def main() -> int:
+    strict = "--strict" in sys.argv[1:]
     config = corpus.load_config(required=("theme_stems",))
+    blocked = strict_errors() if strict else {}
     if not corpus.PAGE_FACTS.is_file():
         raise SystemExit(
             f"нет {corpus.PAGE_FACTS} — атомизация страниц ещё не сделана "
@@ -50,6 +75,10 @@ def main() -> int:
                 where = {"deck": deck, "page": page, "label": label, "value": value}
                 if not label or not value:
                     rejected.append({**where, "reason": "пустая подпись или значение"})
+                    continue
+                code = blocked.get((deck, page, label, value))
+                if code:
+                    rejected.append({**where, "reason": f"входной контроль: {code}"})
                     continue
                 if fact.get("verified") is not True:
                     rejected.append({**where, "reason": "нет verified: true (факт не сверен с источником)"})
@@ -84,7 +113,9 @@ def main() -> int:
     for row in rows:
         by_deck[row["deck"]] = by_deck.get(row["deck"], 0) + 1
     print(f"фактов: {len(rows)} (уникальных id), тематических: {sum(r['thematic'] for r in rows)}, "
-          f"дублей: {duplicates}, отклонено: {len(rejected)}")
+          f"дублей: {duplicates}, отклонено: {len(rejected)}"
+          + (f", из них входным контролем {sum(1 for r in rejected if str(r['reason']).startswith('входной'))}"
+             if strict else ""))
     for deck, count in sorted(by_deck.items()):
         print(f"  {deck}: {count}")
     if rejected:
