@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fact-corpus-pipeline"
+version = "1.1.0"
+description = "Decks → machine-readable facts → analyses → reproducible verdicts"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Osmosy" }]
+dependencies = ["snowballstemmer==3.1.1"]
+
+[project.scripts]
+fcp = "fact_corpus_pipeline.cli:main"
+
+[tool.setuptools]
+packages = ["fact_corpus_pipeline"]

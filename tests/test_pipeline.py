@@ -29,6 +29,7 @@ sys.path.insert(0, str(SCRIPTS))
 import corpus  # noqa: E402
 import matching  # noqa: E402
 import stability  # noqa: E402
+import verdicts  # noqa: E402
 import run_analysis  # noqa: E402
 
 
@@ -191,6 +192,28 @@ class TestExtractObject(unittest.TestCase):
         envelope = corpus.extract_object(text, ("sessionId",))
         inner = corpus.extract_object(envelope["response"], ("selected",))
         self.assertEqual(inner["selected"][0]["fact_id"], "F-1")
+
+
+class TestVerdicts(unittest.TestCase):
+    def test_summary_is_per_fact_not_per_model(self) -> None:
+        by_channel = {"a": {"F-1": {"verdict": "material"}, "F-2": {"verdict": "material"},
+                            "F-3": {"verdict": "background"}},
+                      "b": {"F-1": {"verdict": "material"}, "F-2": {"verdict": "background"},
+                            "F-3": {"verdict": "background"}}}
+        groups = verdicts.summary(by_channel, ["F-1", "F-2", "F-3"])
+        self.assertEqual(groups["all_material"], ["F-1"])       # согласились на материале
+        self.assertEqual(groups["split"], ["F-2"])
+        self.assertEqual(groups["all_background"], ["F-3"])
+        self.assertEqual(groups["not_all_answered"], [])
+
+    def test_missing_answer_goes_to_separate_group(self) -> None:
+        groups = verdicts.summary({"a": {}, "b": {}}, ["F-1"])
+        self.assertEqual(groups["not_all_answered"], ["F-1"])
+
+    def test_unknown_verdict_is_problem(self) -> None:
+        parsed, problems = verdicts.parse('{"verdicts": [{"fact_id": "F-1", "verdict": "noise"}]}')
+        self.assertEqual(parsed, {})
+        self.assertTrue(problems)
 
 
 class TestReportAndNumbers(unittest.TestCase):
