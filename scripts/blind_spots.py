@@ -118,8 +118,7 @@ def review(backend: str, model: str) -> int:
         + CONTRACT
     )
     print(f"{backend}: {len(rows)} фактов, промпт {len(prompt)} символов")
-    answer, meta = (ra.call_zcode(prompt, keys=("verdicts",)) if backend == "zcode"
-                    else ra.call_ollama(prompt, model, keys=("verdicts",)))
+    answer, meta = ra.call(backend, prompt, keys=("verdicts",), model=model or None)
     data = json.loads(answer) if answer else None
     known = {row["fact_id"] for row in rows}
     verdicts = {item["fact_id"]: item for item in (data or {}).get("verdicts", [])
@@ -207,7 +206,7 @@ def summary() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--review", choices=("zcode", "ollama"))
+    parser.add_argument("--review", help="имя канала из backends.json или zcode/ollama")
     parser.add_argument("--summary", action="store_true")
     parser.add_argument("--diff", action="store_true")
     parser.add_argument("--model", default=corpus.LLM_MODEL)

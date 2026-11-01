@@ -28,6 +28,7 @@ PLAN = ROOT / "docs/facts/plan.json"
 DECISIONS = ROOT / "docs/facts/fact_decisions.json"
 DISPOSITIONS = ROOT / "docs/registry/dispositions.json"
 PAGE_FACTS = ROOT / "docs/registry/page_facts.json"
+BACKENDS = ROOT / "docs/facts/backends.json"
 REQUIREMENTS = ROOT / "docs/requirements-registry.jsonl"
 RUNS = ROOT / "docs/facts/runs"
 REJECTED_FACTS = ROOT / "docs/facts/facts-rejected.jsonl"
@@ -68,6 +69,51 @@ def load_jsonl(path: Path) -> list[dict]:
     if not path.is_file():
         return []
     return [json.loads(line) for line in path.read_text("utf-8").splitlines() if line.strip()]
+
+
+BUILTIN_BACKENDS = {
+    "zcode": {"kind": "zcode"},
+    "ollama": {"kind": "openai", "url": LLM_URL, "model": LLM_MODEL, "key_env": "LLM_API_KEY"},
+}
+
+
+def load_backends() -> dict:
+    """Реестр каналов: docs/facts/backends.json. Без файла остаются два встроенных."""
+    if not BACKENDS.is_file():
+        return {}
+    return json.loads(BACKENDS.read_text("utf-8")).get("backends", {})
+
+
+def backend(name: str) -> dict:
+    """Канал по имени: из реестра, иначе встроенный. Неизвестное имя — остановка."""
+    spec = load_backends().get(name) or BUILTIN_BACKENDS.get(name)
+    if not spec:
+        known = sorted(set(load_backends()) | set(BUILTIN_BACKENDS))
+        raise SystemExit(f"неизвестный канал {name!r}; в реестре и встроенных: {', '.join(known)}")
+    spec = dict(spec)
+    spec.setdefault("kind", "openai")
+    if spec["kind"] == "openai":
+        spec["url"] = spec.get("url") or LLM_URL
+        spec["model"] = spec.get("model") or LLM_MODEL
+    return spec
+
+
+def backend_key(spec: dict) -> str | None:
+    """Ключ берётся только из переменной окружения, в файле лежит её имя."""
+    name = spec.get("key_env")
+    return os.environ.get(name) if name else None
+
+
+def normalize_usage(usage: dict | None) -> dict:
+    """Расход в одном виде для всех каналов: вход, выход, единицы пула."""
+    usage = usage or {}
+    input_tokens = usage.get("input_tokens", usage.get("prompt_tokens"))
+    output_tokens = usage.get("output_tokens", usage.get("completion_tokens"))
+    pool_units = usage.get("pool_units", usage.get("totalTokens"))
+    if pool_units is None and isinstance(usage.get("total_tokens"), int):
+        pool_units = usage["total_tokens"]
+    return {"input_tokens": input_tokens, "output_tokens": output_tokens,
+            "pool_units": pool_units}
 
 
 def load_facts(deck: str | None = None) -> list[dict]:

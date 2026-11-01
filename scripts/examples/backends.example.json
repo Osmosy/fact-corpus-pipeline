@@ -1,0 +1,19 @@
+{
+  "backends": {
+    "local": {
+      "kind": "openai",
+      "url": "http://127.0.0.1:11434/v1/chat/completions",
+      "model": "qwen3:8b",
+      "key_env": null
+    },
+    "pool": {
+      "kind": "zcode"
+    },
+    "frontier": {
+      "kind": "anthropic",
+      "url": "https://api.example.com/v1/messages",
+      "model": "frontier-model",
+      "key_env": "FRONTIER_API_KEY"
+    }
+  }
+}

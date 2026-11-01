@@ -11,9 +11,10 @@
 каноне колоды, выводы есть и у каждого вывода есть ссылки. Иначе прогон сохраняется с
 непустым `problems` и в сравнение не идёт (см. corpus.load_runs).
 
-Бэкенды:
-  zcode   — пул Z.AI через `zcode-start-plan` (тратит пул);
-  ollama  — OpenAI-совместимый шлюз к модели (LLM_URL / LLM_MODEL).
+Каналы: имя из `docs/facts/backends.json` или встроенные `zcode` (пул Z.AI через
+`zcode-start-plan`) и `ollama` (OpenAI-совместимый шлюз, LLM_URL/LLM_MODEL). Канал описывается
+как {"kind": "openai|zcode|anthropic", "url", "model", "key_env"}; ключ берётся только из
+переменной окружения. Расход пишется нормализованно: input_tokens, output_tokens, pool_units.
 
 Запуск: CORPUS_ROOT=/path/to/project python3 $SKILL/run_analysis.py --backend ollama --deck <колода>
 """
@@ -80,6 +81,59 @@ def call_zcode(prompt: str, keys: tuple[str, ...] = KEYS) -> tuple[str, dict]:
         answer = corpus.extract_object(proc.stdout, keys)
     meta["answer_found"] = answer is not None
     return json.dumps(answer, ensure_ascii=False) if answer else "", meta
+
+
+def call_openai(prompt: str, spec: dict, keys: tuple[str, ...] = KEYS) -> tuple[str, dict]:
+    """OpenAI-совместимый чат: подходит для локального шлюза и любого облака с тем же API."""
+    body = json.dumps({"model": spec.get("model"), "stream": False, "temperature": 0.2,
+                       "messages": [{"role": "user", "content": prompt}]},
+                      ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    key = corpus.backend_key(spec)
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    request = urllib.request.Request(spec.get("url") or corpus.LLM_URL, data=body, headers=headers)
+    with urllib.request.urlopen(request, timeout=1800) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    text = payload["choices"][0]["message"]["content"]
+    meta = {"usage": payload.get("usage"), "model": payload.get("model")}
+    answer = corpus.extract_object(text, keys)
+    meta["answer_found"] = answer is not None
+    return json.dumps(answer, ensure_ascii=False) if answer else "", meta
+
+
+def call_anthropic(prompt: str, spec: dict, keys: tuple[str, ...] = KEYS) -> tuple[str, dict]:
+    """Anthropic Messages API: другой формат тела и заголовков, ответ тот же JSON."""
+    body = json.dumps({"model": spec.get("model"), "max_tokens": 4096,
+                       "messages": [{"role": "user", "content": prompt}]},
+                      ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json", "anthropic-version": "2023-06-01"}
+    key = corpus.backend_key(spec)
+    if key:
+        headers["x-api-key"] = key
+    request = urllib.request.Request(spec.get("url"), data=body, headers=headers)
+    with urllib.request.urlopen(request, timeout=1800) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    parts = payload.get("content") or []
+    text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+    meta = {"usage": payload.get("usage"), "model": payload.get("model")}
+    answer = corpus.extract_object(text, keys)
+    meta["answer_found"] = answer is not None
+    return json.dumps(answer, ensure_ascii=False) if answer else "", meta
+
+
+def call(backend: str, prompt: str, keys: tuple[str, ...] = KEYS,
+         model: str | None = None) -> tuple[str, dict]:
+    """Единая точка вызова: имя канала решает, каким протоколом идти."""
+    spec = corpus.backend(backend)
+    if model:
+        spec["model"] = model
+    kind = spec["kind"]
+    if kind == "zcode":
+        return call_zcode(prompt, keys)
+    if kind == "anthropic":
+        return call_anthropic(prompt, spec, keys)
+    return call_openai(prompt, spec, keys)
 
 
 def call_ollama(prompt: str, model: str, keys: tuple[str, ...] = KEYS) -> tuple[str, dict]:
@@ -152,10 +206,12 @@ def validate(answer: str, facts: list[dict]) -> tuple[dict | None, list[str]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--backend", choices=("zcode", "ollama"), required=True)
+    parser.add_argument("--backend", required=True, help="имя канала из backends.json или zcode/ollama")
     parser.add_argument("--deck", required=True)
     parser.add_argument("--model", default=corpus.LLM_MODEL)
     parser.add_argument("--thematic-only", action="store_true")
+    parser.add_argument("--shuffle", action="store_true", help="перемешать порядок фактов в промпте")
+    parser.add_argument("--seed", type=int, default=None)
     args = parser.parse_args()
 
     config = corpus.load_config(required=("question", "role"))
@@ -166,12 +222,18 @@ def main() -> int:
         print(f"нет фактов для {args.deck}")
         return 2
 
+    order: dict = {}
+    if args.shuffle:
+        import random
+        seed = args.seed if args.seed is not None else int(time.time())
+        facts = list(facts)
+        random.Random(seed).shuffle(facts)
+        order = {"shuffled": True, "seed": seed}
     prompt = build_prompt(args.deck, facts, config)
     print(f"{args.backend}: {len(facts)} фактов, промпт {len(prompt)} символов")
     started = time.time()
     try:
-        answer, meta = (call_zcode(prompt) if args.backend == "zcode"
-                        else call_ollama(prompt, args.model))
+        answer, meta = call(args.backend, prompt, model=args.model or None)
     except Exception as error:  # noqa: BLE001 — сбой канала не должен терять прогон
         print(f"канал упал: {type(error).__name__}: {error}")
         return 1
@@ -186,6 +248,8 @@ def main() -> int:
         "facts_total": len(facts),
         "facts_thematic": sum(row["thematic"] for row in facts),
         "seconds": round(time.time() - started, 1),
+        "usage": corpus.normalize_usage((meta or {}).get("usage")),
+        "order": order,
         "meta": meta,
         "problems": problems,
         "answer": data,

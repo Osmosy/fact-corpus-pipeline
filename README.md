@@ -85,8 +85,14 @@ CORPUS_ROOT=$PWD python3 $SKILL/blind_spots.py --diff      # что измени
 Без `docs/facts/config.json` скрипты останавливаются: вопрос исследования и основы
 тематических слов — данные корпуса, а не константы кода.
 
-Требуется Python 3.11+. Каналы: CLI с промо-пулом (`ZCODE_BIN`, по умолчанию
-`~/.local/bin/zcode-start-plan`) или любой OpenAI-совместимый эндпоинт (`LLM_URL`, `LLM_MODEL`).
+Требуется Python 3.11+ и `pip install -r requirements.txt` (основы русских слов для сверки
+факта в выводах).
+
+Каналы задаются реестром `docs/facts/backends.json` (образец —
+`scripts/examples/backends.example.json`): `{"kind": "openai|anthropic|zcode", "url", "model",
+"key_env"}`. Ключ берётся только из переменной окружения — в файле лежит её имя. Без реестра
+работают встроенные имена `zcode` (CLI с пулом, `ZCODE_BIN`) и `ollama` (`LLM_URL`,
+`LLM_MODEL`), поэтому прежние команды не ломаются.
 
 Переменные окружения:
 

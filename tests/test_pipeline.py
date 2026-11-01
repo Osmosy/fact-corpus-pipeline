@@ -192,6 +192,84 @@ class TestExtractObject(unittest.TestCase):
         self.assertEqual(inner["selected"][0]["fact_id"], "F-1")
 
 
+class TestBackends(CorpusCase):
+    """Канал описывается реестром, а не списком в коде; ключ — только из окружения."""
+
+    def write_backends(self, body: dict) -> None:
+        path = self.tmp / "docs/facts/backends.json"
+        path.write_text(json.dumps({"backends": body}, ensure_ascii=False), encoding="utf-8")
+
+    def serve(self, answer: dict) -> tuple[str, "object"]:
+        """Подставной OpenAI-совместимый сервер: без сети и без токенов."""
+        import http.server
+        import threading
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):                                   # noqa: N802
+                length = int(self.headers.get("Content-Length") or 0)
+                self.rfile.read(length)
+                payload = {"model": "stub-1", "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+                           "choices": [{"message": {"content": json.dumps(answer, ensure_ascii=False)}}]}
+                body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):                        # тишина в выводе теста
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        return f"http://127.0.0.1:{server.server_address[1]}/v1/chat/completions", server
+
+    def test_registry_channel_is_used_and_usage_normalized(self) -> None:
+        self.run_script("build_facts.py")
+        facts = [json.loads(line) for line in
+                 (self.tmp / "docs/facts/facts.jsonl").read_text("utf-8").splitlines()]
+        answer = {"selected": [{"fact_id": facts[0]["fact_id"], "why": "важно"}],
+                  "conclusions": [{"text": "вывод", "fact_ids": [facts[0]["fact_id"]]}],
+                  "not_relevant": []}
+        url, server = self.serve(answer)
+        try:
+            self.write_backends({"stub": {"kind": "openai", "url": url, "model": "stub-1"}})
+            done = self.run_script("run_analysis.py", "--backend", "stub", "--deck", "mini-2026")
+        finally:
+            server.shutdown()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        run = json.loads(sorted((self.tmp / "docs/facts/runs").glob("mini-2026.stub-*.json"))[-1]
+                         .read_text("utf-8"))
+        self.assertEqual(run["usage"]["input_tokens"], 11)
+        self.assertEqual(run["usage"]["output_tokens"], 7)
+        self.assertIsInstance(run["seconds"], float)
+
+    def test_unknown_channel_stops_with_list(self) -> None:
+        self.run_script("build_facts.py")
+        done = self.run_script("run_analysis.py", "--backend", "нет-такого", "--deck", "mini-2026")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("ollama", done.stderr + done.stdout)
+
+    def test_builtin_channels_still_work_without_registry(self) -> None:
+        spec = corpus.backend("ollama")
+        self.assertEqual(spec["kind"], "openai")
+        with self.assertRaises(SystemExit):
+            corpus.backend("нет-такого")
+
+    def test_cost_report_totals(self) -> None:
+        runs = self.tmp / "docs/facts/runs"
+        self.run_script("build_facts.py")
+        corpus.write_json(runs / "mini-2026.stub-20260101-000000.json", {
+            "deck": "mini-2026", "backend": "stub", "seconds": 2.0,
+            "usage": {"input_tokens": 10, "output_tokens": 5, "pool_units": 15},
+            "problems": [], "answer": {"selected": [], "conclusions": [], "not_relevant": []}})
+        done = self.run_script("cost_report.py")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        report = json.loads((self.tmp / "docs/facts/COST.json").read_text("utf-8"))
+        self.assertEqual(report["totals"]["stub"]["pool_units"], 15)
+        self.assertEqual(report["totals"]["stub"]["runs"], 1)
+
+
 class TestMatching(unittest.TestCase):
     """Пересказ не должен давать ложный провал, а «похоже по словам» — давать ложный pass."""
 
