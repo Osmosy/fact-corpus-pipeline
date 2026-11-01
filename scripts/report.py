@@ -132,9 +132,7 @@ def collect() -> dict:
              if row["thematic"] and row["fact_id"] not in taken_all}
     verdicts = verdict_counts(blind)
 
-    requirements_live = proven = 0
-    content_live: list[str] = []
-    content_proven = legend_proven = 0
+    requirements_live = proven = definitions = 0
     registry = corpus.ROOT / "docs/requirements-registry.jsonl"
     if registry.is_file():
         latest: dict[str, dict] = {}
@@ -142,7 +140,12 @@ def collect() -> dict:
             if line.strip():
                 row = json.loads(line)
                 latest[row["req_id"]] = row
-        live = [row for row in latest.values() if row.get("status") not in ("rejected", "superseded")]
+        alive = [row for row in latest.values()
+                 if row.get("status") not in ("rejected", "superseded")]
+        # определение задаёт термины (легенда вердиктов), обещания не несёт: в счёте
+        # «доказано N из M» его нет, но запись живая и доказательства её никуда не деваются
+        live = [row for row in alive if row.get("kind") in ("requirement", "constraint")]
+        definitions = len(alive) - len(live)
         requirements_live = len(live)
         evidence = corpus.ROOT / "docs/registry/evidence.jsonl"
         passed: set[str] = set()
@@ -153,10 +156,7 @@ def collect() -> dict:
                     if row.get("result") == "pass":
                         passed.add(row.get("req_id"))
         proven = len({row["req_id"] for row in live} & passed)
-        legend = set((corpus.load_config(required=()) or {}).get("legend_requirements") or [])
-        content_live = [row["req_id"] for row in live if row["req_id"] not in legend]
-        content_proven = len([req for req in content_live if req in passed])
-        legend_proven = len([req for req in legend if req in passed])
+
 
     disposition_counts: dict[str, int] = {}
     dispositions_path = corpus.ROOT / "docs/registry/dispositions.json"
@@ -340,9 +340,7 @@ def collect() -> dict:
         "requirements.live": requirements_live,
         "requirements.proven": proven,
         "requirements.unproven": max(0, requirements_live - proven),
-        "requirements.content_live": len(content_live),
-        "requirements.content_proven": content_proven,
-        "requirements.legend_proven": legend_proven,
+        "definitions.total": definitions,
         "requirements.info": disposition_counts.get("info", 0),
         "requirements.conclusions": disposition_counts.get("conclusions", 0),
         "requirements.rb_info": disposition_counts.get("info:РБ", 0),

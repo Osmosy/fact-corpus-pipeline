@@ -22,12 +22,10 @@
  "theme.answered": 40,
  "theme.mistaken": 4,
  "theme.share": 0.1,
- "requirements.live": 43,
- "requirements.proven": 32,
+ "requirements.live": 40,
+ "requirements.proven": 29,
  "requirements.unproven": 11,
- "requirements.content_live": 40,
- "requirements.content_proven": 29,
- "requirements.legend_proven": 3,
+ "definitions.total": 3,
  "requirements.info": 13,
  "requirements.conclusions": 7,
  "requirements.rb_info": 8,
@@ -115,5 +113,5 @@
  "deck.sbermarket-serebryanyy-vozrast-2026.thematic": 5,
  "deck.sbermarket-serebryanyy-vozrast-2026.taken": 33,
  "runs.total": 26,
- "requirements.proven_free": 12
+ "requirements.proven_free": 9
 }
