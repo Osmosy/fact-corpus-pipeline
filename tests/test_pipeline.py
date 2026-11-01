@@ -27,6 +27,7 @@ FIXTURE = REPO / "tests/fixtures/mini-corpus"
 
 sys.path.insert(0, str(SCRIPTS))
 import corpus  # noqa: E402
+import matching  # noqa: E402
 import run_analysis  # noqa: E402
 
 
@@ -189,6 +190,39 @@ class TestExtractObject(unittest.TestCase):
         envelope = corpus.extract_object(text, ("sessionId",))
         inner = corpus.extract_object(envelope["response"], ("selected",))
         self.assertEqual(inner["selected"][0]["fact_id"], "F-1")
+
+
+class TestMatching(unittest.TestCase):
+    """Пересказ не должен давать ложный провал, а «похоже по словам» — давать ложный pass."""
+
+    LABEL = "Высокое содержание мяса"
+    VALUE = "39 %"
+
+    def test_paraphrase_with_same_number_matches(self) -> None:
+        result = matching.match(self.LABEL, self.VALUE,
+                                "Потребители выбирают продукты с высоким содержанием мяса — 39 %.")
+        self.assertTrue(result["matched"], result)
+        self.assertIn("мяс", result["found"])
+
+    def test_stems_without_number_do_not_match(self) -> None:
+        result = matching.match(self.LABEL, self.VALUE,
+                                "Продукты с высоким содержанием мяса покупают чаще.")
+        self.assertFalse(result["matched"], result)
+        self.assertFalse(result["number_found"])
+
+    def test_number_without_stems_does_not_match(self) -> None:
+        result = matching.match(self.LABEL, self.VALUE,
+                                "Доля рынка выросла до 39 % за год.")
+        self.assertFalse(result["matched"], result)
+        self.assertLess(result["share"], 0.6)
+
+    def test_explanation_lists_found_and_missing(self) -> None:
+        result = matching.match("Простой состав продукта", "40 %",
+                                "Простой состав — 40 % покупателей.")
+        self.assertTrue(result["found"])
+        self.assertTrue(result["missing"])                       # «продукт» в предложении нет
+        self.assertFalse(set(result["found"]) & set(result["missing"]))
+        self.assertIn(matching.stems("состав")[0], result["found"])
 
 
 class InputCheckCase(unittest.TestCase):
