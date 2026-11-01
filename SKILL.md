@@ -1,7 +1,7 @@
 ---
 name: fact-corpus-pipeline
 description: Use when decks must become facts, model analyses, verdicts.
-version: 2.4.0
+version: 2.4.1
 author: Hermes Agent
 license: MIT
 platforms: [linux]
@@ -347,6 +347,9 @@ CORPUS_ROOT=$PWD python3 $SKILL/apply_dispositions.py    # нужен GRACE_REGI
 - Включаются явно: `load_facts(include_owner=True)` — для приёмки, приложения и отчёта.
 - Приложение показывает раздел «Знание владельца» с источником и датой; отчёт — ключ
   `owner_facts.total`.
+- Признак проверки задаётся **полем**, а не текстом: нужно ли маркер панели — решает
+  `require_marker` в записи исключения. Условие, записанное словами в причине, отключается
+  правкой формулировки, и никто этого не замечает.
 - Чего нельзя: выдавать знание владельца за число корпуса, подменять им числа колод, ссылаться
   на `O-…`, которого нет в файле (валидатор ответа это ловит).
 

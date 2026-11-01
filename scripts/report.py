@@ -181,17 +181,20 @@ def collect() -> dict:
         for fact_id, entry in json.loads(decisions_path.read_text(encoding="utf-8")).items():
             for req_id in (entry.get("req_ids") or []):
                 fact_reqs.setdefault(req_id, []).append(fact_id)
-    rb_info = 0
     dispositions_all = {}
     if (corpus.ROOT / "docs/registry/dispositions.json").is_file():
         dispositions_all = json.loads(
             (corpus.ROOT / "docs/registry/dispositions.json").read_text(encoding="utf-8"))
-    for req_id, entry in dispositions_all.items():
-        if not isinstance(entry, dict) or entry.get("target") != "info":
-            continue
-        if any(panel_facts.get(fact_id) == "РБ" for fact_id in fact_reqs.get(req_id, [])):
-            rb_info += 1
+
+    # требования панели РБ: rb_total — все, чей факт стоит на строке РБ; rb_info — из них в «Справочно»
+    rb_requirements = {req_id for req_id, fact_ids in fact_reqs.items()
+                       if any(panel_facts.get(fact_id) == "РБ" for fact_id in fact_ids)}
+    rb_total = len(rb_requirements)
+    rb_info = sum(1 for req_id in rb_requirements
+                  if isinstance(dispositions_all.get(req_id), dict)
+                  and dispositions_all[req_id].get("target") == "info")
     disposition_counts["info:РБ"] = rb_info
+    disposition_counts["all:РБ"] = rb_total
 
     # прогоны: базовые, повторы шума и отклонённые приёмкой — одно число с раскладкой
     runs_base = runs_stability = runs_rejected = 0
@@ -333,7 +336,8 @@ def collect() -> dict:
         "requirements.legend_proven": legend_proven,
         "requirements.info": disposition_counts.get("info", 0),
         "requirements.conclusions": disposition_counts.get("conclusions", 0),
-        "requirements.rb": disposition_counts.get("info:РБ", 0),
+        "requirements.rb_info": disposition_counts.get("info:РБ", 0),
+        "requirements.rb_total": disposition_counts.get("all:РБ", 0),
         "owner_facts.total": len(corpus.load_owner_facts()),
         "runs.base": runs_base,
         "runs.stability": runs_stability,
