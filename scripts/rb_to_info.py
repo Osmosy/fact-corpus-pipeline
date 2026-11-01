@@ -103,7 +103,8 @@ def main() -> int:
         deck = deck_of(record)
         if not deck:
             continue
-        if panels.get((deck, record["raw_text"].strip())) == args.panel:
+        panel = panels.get((deck, record["raw_text"].strip()))
+        if panel and panel == args.panel:
             targets.append((req_id, record, deck))
 
     exceptions = owner_exceptions()
@@ -114,9 +115,13 @@ def main() -> int:
 
     print(f"обязательств на панели «{args.panel}»: {len(targets)}")
     if kept:
-        print(f"  исключения владельца, остаются как есть: {len(kept)}")
+        # исключение владельца — не «оставить как есть», а осознанная судьба: требование
+        # закрывается выводами, но число в них обязано идти с пометкой панели
+        print(f"  исключения владельца → conclusions: {len(kept)}")
         for req_id, entry in kept:
             print(f"    {req_id}: {entry.get('reason')} ({entry.get('date')}, {entry.get('signed_by')})")
+            dispositions[req_id] = {"target": "conclusions", "reason": entry.get("reason"),
+                                    "by": entry.get("signed_by") or config["decided_by"]}
     linked = skipped = 0
     for req_id, record, deck in targets:
         cells = [cell.strip() for cell in record["raw_text"].strip().strip("|").split("|")]

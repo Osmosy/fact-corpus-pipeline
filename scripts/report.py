@@ -193,6 +193,78 @@ def collect() -> dict:
             rb_info += 1
     disposition_counts["info:РБ"] = rb_info
 
+    # прогоны: базовые, повторы шума и отклонённые приёмкой — одно число с раскладкой
+    runs_base = runs_stability = runs_rejected = 0
+    if corpus.RUNS.is_dir():
+        for path in sorted(corpus.RUNS.glob("*.json")):
+            body = json.loads(path.read_text(encoding="utf-8"))
+            if not body.get("answer") or body.get("problems"):
+                runs_rejected += 1
+                continue
+            if corpus.run_purpose(body) == "stability":
+                runs_stability += 1
+            else:
+                runs_base += 1
+
+    # раскладка решений: единица — требование, категории не пересекаются
+    decision_breakdown: dict[str, int] = {}
+    if dispositions_all:
+        facts_by_id = {row["fact_id"]: row for row in corpus.load_facts()}
+        req_fact: dict[str, str] = {}
+        for fact_id, entry in (json.loads(decisions_path.read_text(encoding="utf-8"))
+                               if decisions_path.is_file() else {}).items():
+            for req_id in (entry.get("req_ids") or []):
+                req_fact[req_id] = fact_id
+        counts = {"decisions.rb": 0, "decisions.profile": 0, "decisions.other": 0,
+                  "decisions.exceptions": 0, "decisions.reasons_rf": 0}
+        exceptions = {entry.get("req_id") for entry in
+                      (corpus.load_config(required=()) or {}).get("owner_exceptions") or []
+                      if isinstance(entry, dict)}
+        for req_id, entry in dispositions_all.items():
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("target") == "conclusions":
+                counts["decisions.exceptions" if req_id in exceptions
+                       else "decisions.reasons_rf"] += 1
+                continue
+            if entry.get("target") != "info":
+                continue
+            panel = (facts_by_id.get(req_fact.get(req_id, "")) or {}).get("panel") or ""
+            reason = str(entry.get("reason") or "").lower()
+            if panel == "РБ":
+                counts["decisions.rb"] += 1
+            elif "профил" in reason or "доход" in reason:
+                counts["decisions.profile"] += 1
+            else:
+                counts["decisions.other"] += 1
+        counts["decisions.total"] = sum(1 for entry in dispositions_all.values()
+                                        if isinstance(entry, dict))
+        decision_breakdown = counts
+
+    # материалы панели РБ: вердикт material у обеих моделей во втором проходе, панель из канона
+    rb_material: list[str] = []
+    review_path = corpus.ROOT / "docs/facts/BLIND-SPOTS-REVIEW.json"
+    if review_path.is_file() and corpus.FACTS.is_file():
+        review = json.loads(review_path.read_text(encoding="utf-8"))
+        channels = [value for value in review.values() if isinstance(value, dict)]
+        material: dict[str, int] = {}
+        for channel in channels:
+            for fact_id, verdict in (channel.get("verdicts") or {}).items():
+                value = verdict.get("verdict") if isinstance(verdict, dict) else verdict
+                if str(value) == "material":
+                    material[fact_id] = material.get(fact_id, 0) + 1
+        panel_of = {row["fact_id"]: row.get("panel") or ""
+                    for row in corpus.load_facts()}
+        rb_material = sorted(fid for fid, count in material.items()
+                             if count == len(channels) and panel_of.get(fid) == "РБ")
+
+    replay_file = corpus.ROOT / "docs/facts/REPLAY.json"
+    replay_total = replay_match = 0
+    if replay_file.is_file():
+        body = json.loads(replay_file.read_text(encoding="utf-8"))
+        replay_total = int(body.get("total") or 0)
+        replay_match = int(body.get("match") or 0)
+
     stability: dict[str, float] = {}
     for path in sorted(corpus.ROOT.glob("docs/facts/STABILITY-*.json")):
         body = json.loads(path.read_text("utf-8"))
@@ -262,6 +334,14 @@ def collect() -> dict:
         "requirements.info": disposition_counts.get("info", 0),
         "requirements.conclusions": disposition_counts.get("conclusions", 0),
         "requirements.rb": disposition_counts.get("info:РБ", 0),
+        "owner_facts.total": len(corpus.load_owner_facts()),
+        "runs.base": runs_base,
+        "runs.stability": runs_stability,
+        "runs.rejected": runs_rejected,
+        "registry.replay_total": replay_total,
+        "registry.replay_match": replay_match,
+        "rb_material.total": len(rb_material),
+        **decision_breakdown,
         **stability,
         "decks": comparisons,
         **{f"deck.{name}.consensus": body["consensus"] for name, body in comparisons.items()},

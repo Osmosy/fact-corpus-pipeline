@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -116,9 +117,43 @@ def normalize_usage(usage: dict | None) -> dict:
             "pool_units": pool_units}
 
 
-def load_facts(deck: str | None = None) -> list[dict]:
+OWNER_FACTS = ROOT / "docs/facts/owner-facts.jsonl"
+OWNER_PREFIX = "O-"
+
+
+def owner_fact_id(statement: str, source: str, date: str) -> str:
+    """id знания владельца: тот же принцип, что у фактов колод, но свой префикс."""
+    digest = hashlib.sha256(f"{statement}|{source}|{date}".encode("utf-8")).hexdigest()[:12]
+    return f"{OWNER_PREFIX}{digest}"
+
+
+def load_owner_facts() -> list[dict]:
+    """Знание владельца: утверждения, которых нет в колодах. В анализ моделями не идёт.
+
+    Без этого типа пришлось бы либо выдавать слова владельца за факт колоды, либо терять
+    обоснование вывода. Модели такие утверждения не видят: иначе «выбор» модели означал бы
+    согласие с владельцем, а не работу с корпусом.
+    """
+    if not OWNER_FACTS.is_file():
+        return []
+    rows = []
+    for row in load_jsonl(OWNER_FACTS):
+        if not row.get("fact_id"):
+            row["fact_id"] = owner_fact_id(row.get("statement", ""), row.get("source", ""),
+                                           row.get("date", ""))
+        rows.append(row)
+    return rows
+
+
+def load_facts(deck: str | None = None, include_owner: bool = False) -> list[dict]:
+    """Факты колод. Знание владельца подмешивается только по явному запросу.
+
+    По умолчанию его нет: промпт анализа, сравнение и слепые зоны строятся по корпусу.
+    """
     rows = load_jsonl(FACTS)
-    return [row for row in rows if deck is None or row["deck"] == deck]
+    if include_owner:
+        rows = rows + load_owner_facts()
+    return [row for row in rows if deck is None or row.get("deck") == deck]
 
 
 def run_purpose(body: dict) -> str:

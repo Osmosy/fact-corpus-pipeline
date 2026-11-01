@@ -188,7 +188,9 @@ def validate(answer: str, facts: list[dict]) -> tuple[dict | None, list[str]]:
     if problems:
         return data, problems
 
+    # знание владельца (O-…) модели не видят, но если оно упомянуто — id должен существовать
     known = {row["fact_id"] for row in facts}
+    known |= {row["fact_id"] for row in corpus.load_owner_facts()}
     for key, field in (("selected", "fact_id"), ("conclusions", "fact_ids"),
                        ("not_relevant", "fact_id")):
         unknown = [fid for fid in _ids(data[key], field) if fid not in known]

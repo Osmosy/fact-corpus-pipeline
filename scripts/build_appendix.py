@@ -94,6 +94,16 @@ def main() -> int:
         lines.append(f"| {cell(deck)} | {page if page else '—'} | {cell(label)} | "
                      f"{cell(value)} | {cell(reason)} |")
 
+    owner = corpus.load_owner_facts()
+    if owner:
+        lines += ["", "## Знание владельца", "",
+                  "Сведения, которых нет в колодах. Источник и дата указаны у каждого:", ""]
+        for row in owner:
+            lines.append(f"- **{row['fact_id']}** — {row.get('statement')}")
+            lines.append(f"  источник: {row.get('source')}, {row.get('date')}, "
+                         f"область: {row.get('scope', '—')}")
+        lines.append("")
+
     path = appendix_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")

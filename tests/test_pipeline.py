@@ -208,6 +208,53 @@ class TestPanelAliases(unittest.TestCase):
         self.assertEqual(corpus.normalize_panel("Что стоит за ростом?"), "Что стоит за ростом?")
 
 
+class TestOwnerFacts(CorpusCase):
+    """Знание владельца: свой префикс, не идёт в анализ моделям, видно в приложении."""
+
+    def _write(self, statements: list[dict]) -> None:
+        path = self.tmp / "docs/facts/owner-facts.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in statements) + "\n",
+                        encoding="utf-8")
+
+    def test_owner_fact_gets_o_prefix_and_does_not_leak_into_prompt(self) -> None:
+        self._write([{"statement": "Бренд продаётся в сетях", "source": "владелец",
+                      "date": "2026-11-02", "kind": "owner"}])
+        env = {**os.environ, "CORPUS_ROOT": str(self.tmp)}
+        done = subprocess.run(
+            [sys.executable, "-c",
+             "import sys, json; sys.path.insert(0, sys.argv[1]); import corpus;"
+             "o = corpus.load_owner_facts();"
+             "d = corpus.load_facts();"
+             "print(json.dumps({'owner': o[0]['fact_id'], 'in_facts': any(r['fact_id'].startswith('O-') for r in d),"
+             " 'with_owner': len(corpus.load_facts(include_owner=True))}))", str(SCRIPTS)],
+            capture_output=True, text=True, env=env)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        body = json.loads(done.stdout)
+        self.assertTrue(body["owner"].startswith("O-"))
+        self.assertFalse(body["in_facts"])
+        self.assertGreater(body["with_owner"], 0)
+
+    def test_appendix_shows_owner_section(self) -> None:
+        self._write([{"statement": "Бренд продаётся в сетях", "source": "владелец",
+                      "date": "2026-11-02", "kind": "owner"}])
+        self.run_script("build_facts.py")
+        facts = [json.loads(line) for line in
+                 (self.tmp / "docs/facts/facts.jsonl").read_text("utf-8").splitlines() if line.strip()]
+        plan = {facts[0]["fact_id"]: ["info", "второстепенный рынок"]}
+        (self.tmp / "docs/facts/plan.json").write_text(json.dumps(plan), encoding="utf-8")
+        self.run_script("apply_fact_decisions.py")
+        self.run_script("build_appendix.py")
+        path = self.tmp / "reviews/2026-10-25-inkofood/APPENDIX-INFO.md"
+        if not path.is_file():
+            candidates = list((self.tmp / "reviews").rglob("APPENDIX-INFO.md"))
+            self.assertTrue(candidates, "приложение не собрано")
+            path = candidates[0]
+        text = path.read_text("utf-8")
+        self.assertIn("Знание владельца", text)
+        self.assertIn("Бренд продаётся в сетях", text)
+
+
 class TestVerdicts(unittest.TestCase):
     def test_summary_is_per_fact_not_per_model(self) -> None:
         by_channel = {"a": {"F-1": {"verdict": "material"}, "F-2": {"verdict": "material"},
@@ -682,7 +729,7 @@ class TestRbToInfo(CorpusCase):
         config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
         done = self.run_script("rb_to_info.py", "--panel", "РБ")
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-        self.assertIn("исключения владельца, остаются как есть: 1", done.stdout)
+        self.assertIn("исключения владельца → conclusions: 1", done.stdout)
         self.assertNotIn("REQ-0001: стр.", done.stdout)  # не попал в переводимые
 
     def test_exception_without_signature_is_ignored(self) -> None:
