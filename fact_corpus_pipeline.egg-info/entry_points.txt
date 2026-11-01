@@ -1,2 +1,0 @@
-[console_scripts]
-fcp = fact_corpus_pipeline.cli:main

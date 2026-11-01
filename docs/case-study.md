@@ -38,6 +38,34 @@
 называет материалом <!-- n:single.material -->36<!-- /n --> фактов из <!-- n:single.total -->105<!-- /n -->, но повтор той же модели меняет около 38 % выбора,
 поэтому 36 — верхняя граница, а не 36 доказанных пропуска.
 
+## 3. Прогоны
+
+20 прогонов: 14 базовых по корпусу (7 колод × 2 канала) и 6 повторов РОМИР для замера шума
+(2 канала × 3). Сравнение строится только по базовым: у прогона есть назначение `base` или
+`stability`, и вторые в срезы не идут. Один повтор отклонён приёмкой — модель придумала
+`fact_id` вида `F-…_alt`, единственный несуществующий id за все 20 прогонов.
+
+Стоимость базовых прогонов — 27,6 млн единиц пула из 500 млн, около 6 минут на колоду; пилот
+повторов добавил 3,5 млн.
+
+## 4. Что модели взяли
+
+Взят хотя бы одним базовым прогоном <!-- n:taken.total -->245<!-- /n --> фактов из <!-- n:facts.total -->653<!-- /n --> (37 %). Из <!-- n:facts.thematic -->139<!-- /n --> тематических — <!-- n:taken.thematic -->90<!-- /n -->.
+
+| колода | фактов | взято | сошлись все | выбрал один | выводов | согласны все |
+|---|---|---|---|---|---|---|
+| ekopsi | <!-- n:deck.ekopsi-debaty-pro-pokoleniya.facts -->34<!-- /n --> | <!-- n:deck.ekopsi-debaty-pro-pokoleniya.taken -->11<!-- /n --> | <!-- n:deck.ekopsi-debaty-pro-pokoleniya.consensus -->5<!-- /n --> | <!-- n:deck.ekopsi-debaty-pro-pokoleniya.single -->6<!-- /n --> | 5 | 3 |
+| inkofood | <!-- n:deck.inkofood-2026.facts -->209<!-- /n --> | <!-- n:deck.inkofood-2026.taken -->90<!-- /n --> | <!-- n:deck.inkofood-2026.consensus -->65<!-- /n --> | <!-- n:deck.inkofood-2026.single -->25<!-- /n --> | 13 | 5 |
+| nielsen-fmcg | <!-- n:deck.nielsen-fmcg-do-avgusta-2026.facts -->54<!-- /n --> | <!-- n:deck.nielsen-fmcg-do-avgusta-2026.taken -->18<!-- /n --> | <!-- n:deck.nielsen-fmcg-do-avgusta-2026.consensus -->6<!-- /n --> | <!-- n:deck.nielsen-fmcg-do-avgusta-2026.single -->12<!-- /n --> | 7 | 0 |
+| nielsen-itogi | <!-- n:deck.nielsen-itogi-2025-vektory-2026.facts -->121<!-- /n --> | <!-- n:deck.nielsen-itogi-2025-vektory-2026.taken -->41<!-- /n --> | <!-- n:deck.nielsen-itogi-2025-vektory-2026.consensus -->17<!-- /n --> | <!-- n:deck.nielsen-itogi-2025-vektory-2026.single -->24<!-- /n --> | 15 | 4 |
+| romir | <!-- n:deck.romir-trendy-2026.facts -->111<!-- /n --> | <!-- n:deck.romir-trendy-2026.taken -->31<!-- /n --> | <!-- n:deck.romir-trendy-2026.consensus -->21<!-- /n --> | <!-- n:deck.romir-trendy-2026.single -->10<!-- /n --> | 7 | 5 |
+| sbermarket-globalnye | <!-- n:deck.sbermarket-globalnye-trendy-2026.facts -->47<!-- /n --> | <!-- n:deck.sbermarket-globalnye-trendy-2026.taken -->21<!-- /n --> | <!-- n:deck.sbermarket-globalnye-trendy-2026.consensus -->12<!-- /n --> | <!-- n:deck.sbermarket-globalnye-trendy-2026.single -->9<!-- /n --> | 9 | 4 |
+| sbermarket-serebryanyy | <!-- n:deck.sbermarket-serebryanyy-vozrast-2026.facts -->77<!-- /n --> | <!-- n:deck.sbermarket-serebryanyy-vozrast-2026.taken -->33<!-- /n --> | <!-- n:deck.sbermarket-serebryanyy-vozrast-2026.consensus -->14<!-- /n --> | <!-- n:deck.sbermarket-serebryanyy-vozrast-2026.single -->19<!-- /n --> | 12 | 1 |
+
+Итого <!-- n:comparison.consensus -->140<!-- /n --> фактов согласия, <!-- n:single.total -->105<!-- /n --> выбрала ровно одна модель, <!-- n:comparison.clusters -->68<!-- /n --> кластеров выводов, из них <!-- n:comparison.clusters_shared -->22<!-- /n -->
+сформулированы обеими моделями. (Кластеры считаются по пересечению ссылок с порогом Жаккара
+0,5 либо по близости текста: один общий факт выводы не склеивает.)
+
 ## 5. Слепые зоны
 
 <!-- n:blind.total -->49<!-- /n --> тематических фактов не взял никто (<!-- n:blind.share_thematic -->35<!-- /n --> % тематических, <!-- n:blind.share_corpus -->7.5<!-- /n --> % корпуса). Отдельный точечный вопрос обеим моделям разложил их так:
