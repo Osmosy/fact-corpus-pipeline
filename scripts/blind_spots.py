@@ -106,9 +106,28 @@ def diff() -> int:
     return 0
 
 
-def review(backend: str, model: str) -> int:
+def merge_verdicts(previous: dict, meta: dict, verdicts: dict, missing: list[str]) -> dict:
+    """Дополнить проход канала, а не заменить: иначе `--only-new` стирает прежние вердикты."""
+    return {"meta": meta,
+            "verdicts": {**(previous.get("verdicts") or {}), **verdicts},
+            "missing": sorted(set(missing) | set(previous.get("missing") or []))}
+
+
+def review(backend: str, model: str, only_new: bool = False) -> int:
+    """Второй проход по слепым зонам; `only_new` — только факты без вердикта этого канала.
+
+    Полный повторный проход даёт другие вердикты и сдвигает 9/6/23 — поэтому для новых
+    фактов (например, после расширения границы темы) есть режим «только без вердикта».
+    """
     config = corpus.load_config(required=("question", "role"))
     rows = write_list()
+    if only_new:
+        stored = json.loads(OUT_REVIEW.read_text("utf-8")) if OUT_REVIEW.is_file() else {}
+        known = (stored.get(backend) or {}).get("verdicts") or {}
+        rows = [row for row in rows if row["fact_id"] not in known]
+        if not rows:
+            print(f"{backend}: новых фактов без вердикта нет")
+            return 0
     prompt = (
         f"Ты {config['role']}. Ниже факты из колод, которые предыдущие прогоны не взяли "
         f"в опору выводов ({len(rows)} шт.).\n\n{config['question']}\n\n"
@@ -125,7 +144,7 @@ def review(backend: str, model: str) -> int:
                 if isinstance(item, dict) and item.get("fact_id") in known}
     missing = [row["fact_id"] for row in rows if row["fact_id"] not in verdicts]
     stored = json.loads(OUT_REVIEW.read_text("utf-8")) if OUT_REVIEW.is_file() else {}
-    stored[backend] = {"meta": meta, "verdicts": verdicts, "missing": missing}
+    stored[backend] = merge_verdicts(stored.get(backend) or {}, meta, verdicts, missing)
     corpus.write_json(OUT_REVIEW, stored)
     print(f"вердиктов {len(verdicts)} из {len(rows)}"
           + (f", без ответа {len(missing)}" if missing else ""))
@@ -210,13 +229,15 @@ def main() -> int:
     parser.add_argument("--summary", action="store_true")
     parser.add_argument("--diff", action="store_true")
     parser.add_argument("--model", default=corpus.LLM_MODEL)
+    parser.add_argument("--only-new", action="store_true",
+                        help="второй проход только по фактам без вердикта канала")
     args = parser.parse_args()
     if args.diff:
         return diff()
     if args.summary:
         return summary()
     if args.review:
-        return review(args.review, args.model)
+        return review(args.review, args.model, args.only_new)
     write_list()
     return 0
 

@@ -30,6 +30,7 @@ import corpus  # noqa: E402
 import matching  # noqa: E402
 import stability  # noqa: E402
 import single_pick  # noqa: E402
+import blind_spots  # noqa: E402
 import verdicts  # noqa: E402
 import run_analysis  # noqa: E402
 
@@ -215,6 +216,22 @@ class TestVerdicts(unittest.TestCase):
         parsed, problems = verdicts.parse('{"verdicts": [{"fact_id": "F-1", "verdict": "noise"}]}')
         self.assertEqual(parsed, {})
         self.assertTrue(problems)
+
+
+class TestBlindVerdictsMerge(unittest.TestCase):
+    def test_only_new_does_not_erase_previous_verdicts(self) -> None:
+        import blind_spots
+        previous = {"verdicts": {"F-1": {"verdict": "material"}}, "missing": ["F-2"]}
+        merged = blind_spots.merge_verdicts(previous, {"usage": {}},
+                                            {"F-2": {"verdict": "background"}}, [])
+        self.assertEqual(sorted(merged["verdicts"]), ["F-1", "F-2"])
+        self.assertEqual(merged["missing"], ["F-2"])
+
+    def test_new_answer_wins_for_same_fact(self) -> None:
+        import blind_spots
+        previous = {"verdicts": {"F-1": {"verdict": "background"}}}
+        merged = blind_spots.merge_verdicts(previous, {}, {"F-1": {"verdict": "material"}}, [])
+        self.assertEqual(merged["verdicts"]["F-1"]["verdict"], "material")
 
 
 class TestSinglePick(unittest.TestCase):
